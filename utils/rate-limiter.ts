@@ -37,7 +37,8 @@ export class RateLimiter {
     }
 
     /**
-     * Record a request (call after successful API call)
+     * Record a request attempt (call for both successful and failed API calls)
+     * This ensures failed requests also count against rate limits
      */
     recordRequest(): void {
         this.requestTimestamps.push(Date.now());
@@ -97,20 +98,24 @@ export class RateLimiter {
     }
 }
 
+// Global rate limiter to protect the shared API key quota
+// Free tier is ~15 RPM. We set it slightly lower to be safe.
+export const globalLimiter = new RateLimiter({ maxRequests: 12, windowMs: 60 * 1000 });
+
 // Agent-specific rate limiters
 export const rateLimiters = {
-    // Most agents: 10 requests per minute
-    default: new RateLimiter({ maxRequests: 10, windowMs: 60 * 1000 }),
+    // Most agents: 8 requests per minute
+    default: new RateLimiter({ maxRequests: 8, windowMs: 60 * 1000 }),
 
-    // Chat agent: Higher limit for conversational flow
-    chat: new RateLimiter({ maxRequests: 20, windowMs: 60 * 1000 }),
+    // Chat agent: 10 requests per minute
+    chat: new RateLimiter({ maxRequests: 10, windowMs: 60 * 1000 }),
 
     // Heavy agents: Lower limits
-    lyricist: new RateLimiter({ maxRequests: 5, windowMs: 60 * 1000 }),
-    art: new RateLimiter({ maxRequests: 3, windowMs: 60 * 1000 }),
+    lyricist: new RateLimiter({ maxRequests: 3, windowMs: 60 * 1000 }),
+    art: new RateLimiter({ maxRequests: 2, windowMs: 60 * 1000 }),
 
     // Research: Medium limit
-    research: new RateLimiter({ maxRequests: 8, windowMs: 60 * 1000 })
+    research: new RateLimiter({ maxRequests: 5, windowMs: 60 * 1000 })
 };
 
 /**
@@ -118,39 +123,73 @@ export const rateLimiters = {
  * Throws error if limit exceeded
  */
 export const checkRateLimit = (agentType: keyof typeof rateLimiters = 'default'): void => {
+    // 1. Check Global Limit first
+    const globalStatus = globalLimiter.getStatus();
+    
+    console.log(`[RATE LIMIT CHECK] Agent: ${agentType}`);
+    console.log(`  Global: ${globalStatus.remaining}/${globalLimiter['config'].maxRequests} remaining, resetIn: ${Math.ceil(globalStatus.resetIn / 1000)}s`);
+    
+    if (!globalStatus.canRequest) {
+        const seconds = Math.ceil(globalStatus.resetIn / 1000);
+        console.error(`[RATE LIMIT] ❌ BLOCKED - Global limit exceeded! Wait ${seconds}s`);
+        console.error(`[RATE LIMIT] Global timestamps:`, globalLimiter['requestTimestamps']);
+        throw new Error(
+            `System busy (Global Limit). Please wait ${seconds} seconds.`
+        );
+    }
+
+    // 2. Check Agent Specific Limit
     const limiter = rateLimiters[agentType] || rateLimiters.default;
     const status = limiter.getStatus();
+    
+    console.log(`  Agent (${agentType}): ${status.remaining}/${limiter['config'].maxRequests} remaining, resetIn: ${Math.ceil(status.resetIn / 1000)}s`);
 
     if (!status.canRequest) {
         const seconds = Math.ceil(status.resetIn / 1000);
+        console.error(`[RATE LIMIT] ❌ BLOCKED - Agent limit exceeded for ${agentType}! Wait ${seconds}s`);
+        console.error(`[RATE LIMIT] Agent timestamps:`, limiter['requestTimestamps']);
         throw new Error(
-            `Rate limit exceeded. Please wait ${seconds} seconds before making another request.`
+            `Rate limit exceeded for ${agentType}. Please wait ${seconds} seconds.`
         );
     }
 
     // Warn if near limit
-    if (status.isNearLimit) {
+    if (status.isNearLimit || globalStatus.isNearLimit) {
         console.warn(
-            `Approaching rate limit: ${status.remaining} requests remaining. ` +
-            `Resets in ${Math.ceil(status.resetIn / 1000)}s`
+            `[RATE LIMIT] ⚠️ Approaching limit. Global: ${globalStatus.remaining}, Agent: ${status.remaining}`
         );
     }
 };
 
 /**
- * Record successful request
+ * Record request attempt (both successful and failed)
+ * Failed requests also consume rate limit quota on the server side
  */
 export const recordRequest = (agentType: keyof typeof rateLimiters = 'default'): void => {
+    const timestamp = Date.now();
+    console.log(`[RATE LIMIT] 📝 Recording request for ${agentType} at ${new Date(timestamp).toISOString()}`);
+    
+    // Record in global limiter
+    globalLimiter.recordRequest();
+    
+    // Record in agent specific limiter
     const limiter = rateLimiters[agentType] || rateLimiters.default;
     limiter.recordRequest();
+    
+    const globalStatus = globalLimiter.getStatus();
+    const agentStatus = limiter.getStatus();
+    console.log(`[RATE LIMIT] After recording - Global: ${globalStatus.remaining} remaining, Agent: ${agentStatus.remaining} remaining`);
 };
 
 /**
  * Get status for all rate limiters (for UI display)
  */
 export const getAllRateLimitStatus = () => {
-    return Object.entries(rateLimiters).reduce((acc, [key, limiter]) => {
+    const allStatus = Object.entries(rateLimiters).reduce((acc, [key, limiter]) => {
         acc[key] = limiter.getStatus();
         return acc;
     }, {} as Record<string, ReturnType<RateLimiter['getStatus']>>);
+    
+    allStatus['global'] = globalLimiter.getStatus();
+    return allStatus;
 };

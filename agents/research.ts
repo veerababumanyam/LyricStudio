@@ -2,9 +2,13 @@
 import { GoogleGenAI } from "@google/genai";
 import { MODEL_NAME, RESEARCH_PROMPT_TEMPLATE } from "../config";
 import { getApiKey, retryWithBackoff, wrapGenAIError } from "../utils";
+import { checkRateLimit, recordRequest } from "../utils/rate-limiter";
 
-export const runResearchAgent = async (topic: string, mood: string | undefined) => {
-  const key = getApiKey();
+export const runResearchAgent = async (topic: string, mood: string | undefined, modelName?: string) => {
+  const activeModel = modelName || MODEL_NAME;
+  checkRateLimit('research');
+  recordRequest('research'); // Record attempt immediately to track all requests including failures
+  const key = await getApiKey();
   const ai = new GoogleGenAI({ apiKey: key });
   
   const searchPrompt = `${RESEARCH_PROMPT_TEMPLATE(topic, mood)}
@@ -19,7 +23,7 @@ export const runResearchAgent = async (topic: string, mood: string | undefined) 
   try {
     return await retryWithBackoff(async () => {
         const response = await ai.models.generateContent({
-          model: MODEL_NAME,
+          model: activeModel,
           contents: searchPrompt,
           config: {
             tools: [{ googleSearch: {} }],
@@ -44,14 +48,17 @@ export const runResearchAgent = async (topic: string, mood: string | undefined) 
 
   } catch (error) {
     console.warn("Research Agent (Search) failed, falling back to basic knowledge...", error);
+    console.log("[RESEARCH AGENT] Using fallback (no search tools)");
     try {
-        // Fallback without retry wrapper since we are already inside a catch block of sorts, but could wrap if critical
+        // Note: Rate limit already checked and recorded at function start
+        // Fallback uses same quota allocation
         const fallbackResponse = await ai.models.generateContent({
-          model: MODEL_NAME,
+          model: activeModel,
           contents: RESEARCH_PROMPT_TEMPLATE(topic, mood)
         });
         return fallbackResponse.text || "";
     } catch (e) {
+        console.error("[RESEARCH AGENT] Fallback also failed:", e);
         throw wrapGenAIError(e);
     }
   }

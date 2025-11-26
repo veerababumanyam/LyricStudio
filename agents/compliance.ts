@@ -3,8 +3,12 @@ import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { MODEL_NAME, SYSTEM_INSTRUCTION_COMPLIANCE } from "../config";
 import { ComplianceReport, GeneratedLyrics } from "../types";
 import { cleanAndParseJSON, getApiKey, retryWithBackoff } from "../utils";
+import { checkRateLimit, recordRequest } from "../utils/rate-limiter";
 
-export const runComplianceAgent = async (lyrics: GeneratedLyrics | string): Promise<ComplianceReport> => {
+export const runComplianceAgent = async (lyrics: GeneratedLyrics | string, modelName?: string): Promise<ComplianceReport> => {
+  const activeModel = modelName || MODEL_NAME;
+  checkRateLimit('default');
+  recordRequest('default'); // Record attempt immediately to track all requests including failures
   const safeDefault: ComplianceReport = {
     originalityScore: 100,
     flaggedPhrases: [],
@@ -13,7 +17,7 @@ export const runComplianceAgent = async (lyrics: GeneratedLyrics | string): Prom
   };
 
   try {
-    const key = getApiKey();
+    const key = await getApiKey();
     if (!key) return safeDefault;
     
     const ai = new GoogleGenAI({ apiKey: key });
@@ -40,7 +44,7 @@ export const runComplianceAgent = async (lyrics: GeneratedLyrics | string): Prom
     };
 
     const response = await retryWithBackoff(async () => await ai.models.generateContent({
-      model: MODEL_NAME,
+      model: activeModel,
       contents: `Analyze these lyrics for copyright risks:\n${lyricsText}`,
       config: {
         systemInstruction: SYSTEM_INSTRUCTION_COMPLIANCE,

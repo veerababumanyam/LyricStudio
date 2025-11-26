@@ -64,9 +64,18 @@ export const getApiKey = async (): Promise<string> => {
   } catch (error: any) {
     if (error instanceof GeminiError) throw error;
 
-    // Fallback to process.env for backward compatibility (will be removed)
-    console.warn('Using fallback API key from environment. This is insecure and will be removed.');
-    return process.env.API_KEY || "";
+    // If localStorage fails, try process.env as last resort
+    const envKey = process.env.API_KEY;
+    if (envKey) {
+      console.warn('[API KEY] Using fallback from .env file');
+      return envKey;
+    }
+    
+    throw new GeminiError(
+      'No API key configured. Please add your Google Gemini API key in Settings.\n' +
+      'Get your free key at: https://aistudio.google.com/',
+      'AUTH'
+    );
   }
 };
 
@@ -91,20 +100,32 @@ export async function withTimeout<T>(
  */
 export async function retryWithBackoff<T>(
   operation: () => Promise<T>,
-  retries: number = 3,
-  delay: number = 1000,
+  retries: number = 2,
+  delay: number = 2000,
   timeoutMs: number = 30000
 ): Promise<T> {
+  const maxRetries = retries;
+  const attemptNumber = maxRetries - retries + 1;
+  console.log(`[RETRY] Attempt ${attemptNumber}/${maxRetries + 1}, delay: ${delay}ms, timeout: ${timeoutMs}ms`);
+  
   try {
-    return await withTimeout(operation, timeoutMs, 'Request timed out after ' + (timeoutMs / 1000) + 's');
+    const result = await withTimeout(operation, timeoutMs, 'Request timed out after ' + (timeoutMs / 1000) + 's');
+    console.log(`[RETRY] ✅ Success on attempt ${attemptNumber}`);
+    return result;
   } catch (error: any) {
     // Check for fatal errors that should not be retried
     const msg = (error?.message || "").toLowerCase();
+    console.error(`[RETRY] ❌ Attempt ${attemptNumber} failed:`, msg);
+    
     if (msg.includes("api key") || msg.includes("safety") || msg.includes("blocked") || msg.includes("403")) {
+      console.error(`[RETRY] Fatal error detected, not retrying:`, error.message);
       throw error;
     }
 
-    if (retries === 0) throw error;
+    if (retries === 0) {
+      console.error(`[RETRY] Max retries exhausted, throwing error`);
+      throw error;
+    }
 
     const isTransient =
       msg.includes("429") ||
@@ -113,8 +134,12 @@ export async function retryWithBackoff<T>(
       msg.includes("fetch") ||
       msg.includes("network");
 
-    if (!isTransient) throw error;
+    if (!isTransient) {
+      console.error(`[RETRY] Non-transient error, not retrying:`, error.message);
+      throw error;
+    }
 
+    console.log(`[RETRY] Transient error detected, waiting ${delay}ms before retry ${attemptNumber + 1}`);
     await new Promise(resolve => setTimeout(resolve, delay));
     return retryWithBackoff(operation, retries - 1, delay * 2);
   }
@@ -124,13 +149,16 @@ export async function retryWithBackoff<T>(
  * Helper to wrap raw GoogleGenAI errors into categorized GeminiErrors with Human-Friendly messages
  */
 export const wrapGenAIError = (error: any): GeminiError => {
-  console.error("GenAI Original Error:", error);
+  console.error("[ERROR WRAPPER] GenAI Original Error:", error);
   const msg = (error?.message || error?.toString() || "").toLowerCase();
+  console.error("[ERROR WRAPPER] Error message:", msg);
 
   if (msg.includes("api key") || msg.includes("403") || msg.includes("unauthenticated") || msg.includes("key not valid")) {
     return new GeminiError("Access Denied: Your API Key appears to be invalid or expired. Please check your settings.", 'AUTH', error);
   }
   if (msg.includes("429") || msg.includes("quota") || msg.includes("exhausted")) {
+    console.error("[ERROR WRAPPER] 🚫 429/QUOTA error detected!");
+    console.error("[ERROR WRAPPER] Stack trace:", new Error().stack);
     return new GeminiError("System Busy: We're sending requests too fast for the AI. Please wait a moment and try again.", 'QUOTA', error);
   }
   if (msg.includes("503") || msg.includes("overloaded") || msg.includes("500") || msg.includes("internal")) {

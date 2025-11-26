@@ -6,12 +6,19 @@ import { wrapGenAIError, getApiKey, retryWithBackoff } from "../utils";
 import { validateAgentInput } from "../utils/validation";
 import { checkRateLimit, recordRequest } from "../utils/rate-limiter";
 
+import { LanguageProfile, GenerationSettings } from "../types";
+
 // Define Part type locally to ensure type safety without depending on specific SDK exports
 type Part = { text: string } | { inlineData: { mimeType: string; data: string } };
 
 export interface ChatAgentOptions {
   image?: string; // Base64 string
   audio?: string; // Base64 string
+  context?: {
+    language: LanguageProfile;
+    generation: GenerationSettings;
+  };
+  modelName?: string; // New optional parameter
 }
 
 /**
@@ -36,9 +43,23 @@ const getOptimizedHistory = (history: Message[]): { role: string, parts: Part[] 
  * Generates a dynamic system instruction based on the conversation context.
  * This allows the agent to adapt its persona (e.g., empathetic vs. technical).
  */
-const getDynamicInstruction = (history: Message[], currentInput: string) => {
+const getDynamicInstruction = (history: Message[], currentInput: string, context?: ChatAgentOptions['context']) => {
   let instruction = SYSTEM_INSTRUCTION_CHAT;
   const lowerInput = currentInput.toLowerCase();
+
+  // 0. Inject Sidebar Context (CRITICAL)
+  if (context) {
+    instruction += `\n\n[CURRENT SIDEBAR SETTINGS]
+    The user has already configured the following settings in the UI. DO NOT ask for this information again unless they explicitly want to change it.
+    - Primary Language: ${context.language.primary}
+    - Secondary Language: ${context.language.secondary}
+    - Mood: ${context.generation.mood}
+    - Style: ${context.generation.style}
+    - Theme: ${context.generation.theme}
+    - Complexity: ${context.generation.complexity}
+    
+    If the user asks to "start" or "create", assume these settings apply immediately.`;
+  }
 
   // 1. Context: Feedback on Lyrics
   const lastModelMsg = [...history].reverse().find(m => m.role === "model");
@@ -64,11 +85,16 @@ export const runChatAgent = async (
   history: Message[],
   options: ChatAgentOptions | undefined
 ) => {
+  const activeModel = options?.modelName || MODEL_NAME;
+  console.log(`[CHAT AGENT] 💬 Called with text: "${text.substring(0, 50)}..."`);
+  console.log(`[CHAT AGENT] Using Model: ${activeModel}`);
+  
   // 1. Validate input
   validateAgentInput(text);
 
   // 2. Check rate limit
   checkRateLimit('chat');
+  recordRequest('chat'); // Record attempt immediately to track all requests including failures
 
   // 3. Get API key securely
   const key = await getApiKey();
@@ -95,12 +121,12 @@ export const runChatAgent = async (
     { role: "user", parts: currentParts }
   ];
 
-  const systemInstruction = getDynamicInstruction(history, text);
+  const systemInstruction = getDynamicInstruction(history, text, options?.context);
 
   try {
     const response = await retryWithBackoff(async () => {
       const response = await ai.models.generateContent({
-        model: MODEL_NAME,
+        model: activeModel,
         config: {
           systemInstruction: systemInstruction,
           temperature: 0.7,
@@ -109,10 +135,7 @@ export const runChatAgent = async (
         contents: contents
       });
       return response.text || "I'm listening... could you tell me more?";
-    }, 3, 1000, 30000); // 3 retries, 1s delay, 30s timeout
-
-    // 4. Record successful request
-    recordRequest('chat');
+    }, 2, 2000, 30000); // 2 retries, 2s delay, 30s timeout
 
     return response;
 

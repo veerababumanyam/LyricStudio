@@ -363,6 +363,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <PreferenceSelect label="Mood" icon={<Heart />} value={generationSettings.mood} options={MOOD_OPTIONS} customValue={generationSettings.customMood} onChange={v => onSettingChange('mood', v)} onCustomChange={v => onSettingChange('customMood', v)} fontSize={fontSize} />
                 <PreferenceSelect label="Style" icon={<Mic2 />} value={generationSettings.style} options={STYLE_OPTIONS} customValue={generationSettings.customStyle} onChange={v => onSettingChange('style', v)} onCustomChange={v => onSettingChange('customStyle', v)} fontSize={fontSize} />
               </div>
+              <div className="grid grid-cols-2 gap-2">
+                <PreferenceSelect label="Complexity" icon={<Sparkles />} value={generationSettings.complexity} options={COMPLEXITY_OPTIONS} customValue="" onChange={v => onSettingChange('complexity', v)} onCustomChange={() => {}} fontSize={fontSize} />
+                <PreferenceSelect label="Rhyme Scheme" icon={<ListOrdered />} value={generationSettings.rhymeScheme} options={RHYME_SCHEME_OPTIONS} customValue={generationSettings.customRhymeScheme} onChange={v => onSettingChange('rhymeScheme', v)} onCustomChange={v => onSettingChange('customRhymeScheme', v)} fontSize={fontSize} />
+              </div>
             </div>
           </SidebarSection>
 

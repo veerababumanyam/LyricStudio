@@ -24,8 +24,10 @@ export const runLyricistAgent = async (
   languageProfile: LanguageProfile,
   emotionData: EmotionAnalysis | undefined,
   generationSettings: GenerationSettings | undefined,
-  onChunk?: (text: string) => void
+  onChunk?: (text: string) => void,
+  modelName?: string
 ): Promise<string> => {
+  const activeModel = modelName || MODEL_NAME;
   // 1. Validate inputs
   validateAgentInput(userRequest);
 
@@ -39,8 +41,12 @@ export const runLyricistAgent = async (
     }
   }
 
+  console.log(`[LYRICIST AGENT] ✍️ Called with request: "${userRequest.substring(0, 50)}..."`);  
+  console.log(`[LYRICIST AGENT] Using Model: ${activeModel}`);
+  
   // 2. Check rate limit (lyricist has lower limit due to higher token usage)
   checkRateLimit('lyricist');
+  recordRequest('lyricist'); // Record attempt immediately to track all requests including failures
 
   // 3. Get API key securely
   const key = await getApiKey();
@@ -113,34 +119,52 @@ export const runLyricistAgent = async (
   `;
 
   try {
-    const stream = await retryWithBackoff(async () => await ai.models.generateContentStream({
-      model: MODEL_NAME,
-      contents: prompt,
-      config: {
-        systemInstruction: SYSTEM_INSTRUCTION_LYRICIST,
-        responseMimeType: "application/json",
-        responseSchema: lyricsSchema,
-        thinkingConfig: { thinkingBudget: 4096 },
-        temperature: 0.85,
-      }
-    }), 2, 2000, 60000); // 2 retries, 2s delay, 60s timeout (longer for streaming)
-
     let fullText = "";
-    // Cast to any to avoid "unknown" iterator error, assuming SDK returns iterable
-    for await (const chunk of (stream as any)) {
-      const c = chunk as GenerateContentResponse;
-      if (c.text) {
-        fullText += c.text;
-        if (onChunk) onChunk(fullText);
+    
+    // Use non-streaming API when no callback is provided (workflow mode)
+    // Use streaming API when callback is provided (interactive mode)
+    if (!onChunk) {
+      // NON-STREAMING: Get complete response at once
+      console.log(`[LYRICIST] 🎵 Using NON-STREAMING mode (workflow) - will return complete song only`);
+      const response = await retryWithBackoff(async () => await ai.models.generateContent({
+        model: activeModel,
+        contents: prompt,
+        config: {
+          systemInstruction: SYSTEM_INSTRUCTION_LYRICIST,
+          responseMimeType: "application/json",
+          responseSchema: lyricsSchema,
+          temperature: 0.85,
+        }
+      }), 2, 2000, 60000) as GenerateContentResponse;
+
+      fullText = response.text || "";
+      console.log(`[LYRICIST] ✅ Received complete response (${fullText.length} chars), no streaming callbacks called`);
+    } else {
+      // STREAMING: Show partial results as they arrive
+      const stream = await retryWithBackoff(async () => await ai.models.generateContentStream({
+        model: activeModel,
+        contents: prompt,
+        config: {
+          systemInstruction: SYSTEM_INSTRUCTION_LYRICIST,
+          responseMimeType: "application/json",
+          responseSchema: lyricsSchema,
+          temperature: 0.85,
+        }
+      }), 2, 2000, 60000);
+
+      // Cast to any to avoid "unknown" iterator error, assuming SDK returns iterable
+      for await (const chunk of (stream as any)) {
+        const c = chunk as GenerateContentResponse;
+        if (c.text) {
+          fullText += c.text;
+          onChunk(fullText);
+        }
       }
     }
 
     if (!fullText) {
       throw new GeminiError("The model returned an empty response.", 'SERVER');
     }
-
-    // Record successful request
-    recordRequest('lyricist');
 
     try {
       // Attempt clean parse

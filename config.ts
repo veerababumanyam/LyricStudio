@@ -1,8 +1,9 @@
 
 import { AppTheme } from "./types";
 
-export const MODEL_NAME = "gemini-3-pro-preview";
-export const MODEL_FAST = "gemini-2.5-flash"; 
+// Models should be configured via environment variables
+export const MODEL_NAME = import.meta.env.VITE_GOOGLE_GENAI_MODEL || "gemini-2.5-flash";
+export const MODEL_FAST = import.meta.env.VITE_GOOGLE_GENAI_MODEL_SECONDARY || "gemini-2.5-pro"; 
 export const PROMPT_VERSION = "2.1.0"; // Version tracking for system instructions
 
 export const AUTO_OPTION = "Auto (AI Detect)";
@@ -323,6 +324,17 @@ export const SCENARIO_KNOWLEDGE_BASE: CategoryDefinition[] = [
         promptContext: "Context: The formal arranging of a match. The nervous glances between the boy and girl, the parents discussing horoscopes, the serving of coffee, the spark of first attraction amidst family pressure.",
         defaultMood: "Romantic (Shringara)",
         suggestedKeywords: ["Coffee", "Glance", "Destiny", "Nervous"],
+        defaultStyle: "Melody",
+        defaultSinger: "Duet (Male + Female)",
+        defaultComplexity: "Simple",
+        defaultRhyme: "AABB"
+      },
+      {
+        id: "nichithardham",
+        label: "Engagement (Nichithardham)",
+        promptContext: "Context: The official engagement ceremony. Exchange of rings or fruits/clothes. The promise of marriage. Families coming together. A mix of nervousness and joy. The beginning of the wedding journey.",
+        defaultMood: "Happy",
+        suggestedKeywords: ["Ring", "Promise", "Beginning", "Family"],
         defaultStyle: "Melody",
         defaultSinger: "Duet (Male + Female)",
         defaultComplexity: "Simple",

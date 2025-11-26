@@ -3,9 +3,12 @@ import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { MODEL_FAST, SYSTEM_INSTRUCTION_THEME } from "../config";
 import { AppTheme } from "../types";
 import { cleanAndParseJSON, getApiKey, retryWithBackoff } from "../utils";
+import { checkRateLimit, recordRequest } from "../utils/rate-limiter";
 
 export const runThemeAgent = async (description: string): Promise<AppTheme | null> => {
-  const key = getApiKey();
+  checkRateLimit('default');
+  recordRequest('default'); // Record attempt immediately to track all requests including failures
+  const key = await getApiKey();
   const ai = new GoogleGenAI({ apiKey: key });
 
   const themeSchema = {

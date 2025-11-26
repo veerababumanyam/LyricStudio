@@ -2,14 +2,18 @@
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { MODEL_NAME, SYSTEM_INSTRUCTION_FORMATTER, DEFAULT_HQ_TAGS } from "../config";
 import { cleanAndParseJSON, getApiKey, retryWithBackoff, wrapGenAIError } from "../utils";
+import { checkRateLimit, recordRequest } from "../utils/rate-limiter";
 
 export interface FormatterOutput {
   stylePrompt: string;
   formattedLyrics: string;
 }
 
-export const runFormatterAgent = async (lyrics: string): Promise<FormatterOutput> => {
-  const key = getApiKey();
+export const runFormatterAgent = async (lyrics: string, modelName?: string): Promise<FormatterOutput> => {
+  const activeModel = modelName || MODEL_NAME;
+  checkRateLimit('default');
+  recordRequest('default'); // Record attempt immediately to track all requests including failures
+  const key = await getApiKey();
   const ai = new GoogleGenAI({ apiKey: key });
 
   const schema = {
@@ -36,7 +40,7 @@ export const runFormatterAgent = async (lyrics: string): Promise<FormatterOutput
 
   try {
     const response = await retryWithBackoff(async () => await ai.models.generateContent({
-      model: MODEL_NAME,
+      model: activeModel,
       contents: prompt,
       config: {
         systemInstruction: SYSTEM_INSTRUCTION_FORMATTER,

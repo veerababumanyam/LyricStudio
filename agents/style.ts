@@ -2,12 +2,15 @@
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { MODEL_FAST, SYSTEM_INSTRUCTION_STYLE_AGENT } from "../config";
 import { getApiKey, retryWithBackoff, wrapGenAIError } from "../utils";
+import { checkRateLimit, recordRequest } from "../utils/rate-limiter";
 
 export const runStyleAgent = async (
   currentInput: string, 
   lyricsContext: string
 ): Promise<string> => {
-  const key = getApiKey();
+  checkRateLimit('default');
+  recordRequest('default'); // Record attempt immediately to track all requests including failures
+  const key = await getApiKey();
   const ai = new GoogleGenAI({ apiKey: key });
 
   const prompt = `

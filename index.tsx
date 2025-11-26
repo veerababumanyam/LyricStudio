@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Header } from "./components/Header";
 import { LandingPage } from "./components/LandingPage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import "./global.css";
 
 // Lazy load the heavy Studio component
 const Studio = React.lazy(() => import("./components/Studio").then(module => ({ default: module.Studio })));
@@ -11,7 +12,7 @@ const Studio = React.lazy(() => import("./components/Studio").then(module => ({ 
 // --- Root App with Router ---
 const App = () => {
   return (
-    <BrowserRouter>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Routes>
         <Route path="/" element={
             <ErrorBoundary scope="Landing Page">

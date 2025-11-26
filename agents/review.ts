@@ -3,6 +3,7 @@ import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { MODEL_NAME, SYSTEM_INSTRUCTION_REVIEW } from "../config";
 import { GeneratedLyrics, LanguageProfile, GenerationSettings } from "../types";
 import { cleanAndParseJSON, formatLyricsForDisplay, getApiKey, retryWithBackoff, wrapGenAIError } from "../utils";
+import { checkRateLimit, recordRequest } from "../utils/rate-limiter";
 
 const getRhymeDescription = (scheme: string): string => {
   switch (scheme) {
@@ -19,9 +20,13 @@ export const runReviewAgent = async (
   draftLyrics: string, 
   originalContext: string,
   languageProfile: LanguageProfile,
-  generationSettings: GenerationSettings | undefined
+  generationSettings: GenerationSettings | undefined,
+  modelName?: string
 ): Promise<string> => {
-  const key = getApiKey();
+  const activeModel = modelName || MODEL_NAME;
+  checkRateLimit('default');
+  recordRequest('default'); // Record attempt immediately to track all requests including failures
+  const key = await getApiKey();
   const ai = new GoogleGenAI({ apiKey: key });
 
   const lyricsSchema = {
@@ -99,7 +104,7 @@ export const runReviewAgent = async (
 
   try {
     const response = await retryWithBackoff(async () => await ai.models.generateContent({
-      model: MODEL_NAME,
+      model: activeModel,
       contents: prompt,
       config: {
         systemInstruction: SYSTEM_INSTRUCTION_REVIEW,

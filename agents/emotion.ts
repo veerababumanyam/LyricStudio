@@ -2,10 +2,14 @@
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { MODEL_NAME, SYSTEM_INSTRUCTION_EMOTION } from "../config";
 import { EmotionAnalysis } from "../types";
-import { cleanAndParseJSON, getApiKey, retryWithBackoff } from "../utils";
+import { cleanAndParseJSON, getApiKey, retryWithBackoff, wrapGenAIError } from "../utils";
+import { checkRateLimit, recordRequest } from "../utils/rate-limiter";
 
-export const runEmotionAgent = async (input: string): Promise<EmotionAnalysis> => {
-  const key = getApiKey();
+export const runEmotionAgent = async (topic: string, modelName?: string): Promise<EmotionAnalysis> => {
+  const activeModel = modelName || MODEL_NAME;
+  checkRateLimit('emotion');
+  recordRequest('emotion');
+  const key = await getApiKey();
   const ai = new GoogleGenAI({ apiKey: key });
 
   const emotionSchema = {
@@ -22,8 +26,8 @@ export const runEmotionAgent = async (input: string): Promise<EmotionAnalysis> =
 
   try {
     const response = await retryWithBackoff(async () => await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: input,
+      model: activeModel,
+      contents: topic,
       config: {
         systemInstruction: SYSTEM_INSTRUCTION_EMOTION,
         responseMimeType: "application/json",
@@ -37,7 +41,8 @@ export const runEmotionAgent = async (input: string): Promise<EmotionAnalysis> =
     }
     throw new Error("No response text");
   } catch (error) {
-    console.error("Emotion Agent Error:", error);
+    console.error("[EMOTION AGENT] Failed:", error);
+    // Fallback
     return {
       sentiment: "Neutral",
       navarasa: "Shanta",

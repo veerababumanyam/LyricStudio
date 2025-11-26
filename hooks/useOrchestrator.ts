@@ -8,7 +8,8 @@ import { runComplianceAgent } from "../agents/compliance";
 import { runReviewAgent } from "../agents/review";
 import { runFormatterAgent } from "../agents/formatter";
 import { GeminiError, wrapGenAIError } from "../utils";
-import { AUTO_OPTION } from "../config";
+import { AUTO_OPTION, MODEL_NAME } from "../config";
+import { rateLimiters, globalLimiter } from "../utils/rate-limiter";
 
 export const useOrchestrator = () => {
   const [agentStatus, setAgentStatus] = useState<AgentStatus>({
@@ -54,12 +55,17 @@ export const useOrchestrator = () => {
     languageSettings: LanguageProfile,
     genSettings: GenerationSettings,
     addMessage: (msg: Message) => void,
-    updateMessage: (id: string, msg: Partial<Message>) => void
+    updateMessage: (id: string, msg: Partial<Message>) => void,
+    modelName?: string // New optional parameter
   ) => {
     const workflowId = Date.now().toString();
     const finalMsgId = workflowId + "_final";
     const isMixed = languageSettings.primary !== languageSettings.secondary || languageSettings.primary !== languageSettings.tertiary;
     const langLabel = isMixed ? `${languageSettings.primary} Mix` : languageSettings.primary;
+
+    // Use provided model or default
+    const activeModel = modelName || MODEL_NAME;
+    console.log(`[ORCHESTRATOR] Using Model: ${activeModel}`);
 
     const initialSteps: AgentStep[] = [
       { id: 'multimodal', label: 'Multimodal: Processing Input', status: 'pending' },
@@ -73,6 +79,16 @@ export const useOrchestrator = () => {
     ];
 
     try {
+      console.log(`[ORCHESTRATOR] 🎵 Starting workflow for: "${request.substring(0, 50)}..."`);
+      
+      // Add a system message to inform user that song generation is starting
+      addMessage({
+        id: workflowId + "_start",
+        role: "system",
+        content: "🎵 Starting song composition workflow... Your complete song will appear once all agents finish their work.",
+        timestamp: new Date()
+      });
+      
       setAgentStatus({
         active: true,
         currentAgent: "MULTIMODAL",
@@ -80,15 +96,31 @@ export const useOrchestrator = () => {
         steps: initialSteps.map(s => s.id === 'multimodal' ? { ...s, status: 'active' } : s)
       });
 
+      // Pre-flight check: Ensure we have capacity before starting workflow
+      const defaultStatus = rateLimiters.default.getStatus();
+      const lyricistStatus = rateLimiters.lyricist.getStatus();
+      const globalStatus = globalLimiter.getStatus();
+      console.log(`[ORCHESTRATOR] Pre-flight check - Default: ${defaultStatus.remaining}, Lyricist: ${lyricistStatus.remaining}, Global: ${globalStatus.remaining}`);
+      
+      if (!defaultStatus.canRequest || !lyricistStatus.canRequest || !globalStatus.canRequest) {
+        const waitTime = Math.max(defaultStatus.resetIn, lyricistStatus.resetIn, globalStatus.resetIn);
+        throw new GeminiError(
+          `System busy. Please wait ${Math.ceil(waitTime / 1000)} seconds before starting a new song.`,
+          'QUOTA'
+        );
+      }
+
       let processedContext = request;
       try {
-        processedContext = await runMultiModalAgent(request, undefined, undefined);
+        processedContext = await runMultiModalAgent(request, undefined, undefined, activeModel);
       } catch (e) {
         console.warn("Multimodal step failed non-critically", e);
       }
       updateAgentStep('multimodal', 'completed');
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Rate limit protection
+      console.log(`[ORCHESTRATOR] Multimodal completed, waiting 6s...`);
+      await new Promise(resolve => setTimeout(resolve, 6000)); // Rate limit protection
 
+      console.log(`[ORCHESTRATOR] Starting Emotion agent...`);
       setAgentStatus(prev => ({ ...prev, currentAgent: "EMOTION", message: "Feeling the vibe...", steps: prev.steps.map(s => s.id === 'emotion' ? { ...s, status: 'active' } : s) }));
       let emotionData: EmotionAnalysis = {
         sentiment: "Neutral", navarasa: "Shanta", intensity: 5, suggestedKeywords: [], vibeDescription: "Balanced"
@@ -96,30 +128,30 @@ export const useOrchestrator = () => {
       let resolvedSettings = { ...genSettings };
 
       try {
-        emotionData = await runEmotionAgent(processedContext);
+        emotionData = await runEmotionAgent(processedContext, activeModel);
         resolvedSettings = resolveAutoSettings(genSettings, emotionData);
       } catch (e) {
         console.warn("Emotion agent failed, using defaults", e);
       }
       updateAgentStep('emotion', 'completed');
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Rate limit protection
+      await new Promise(resolve => setTimeout(resolve, 6000)); // Rate limit protection
 
       setAgentStatus(prev => ({ ...prev, currentAgent: "RESEARCH", message: `Analyzing context (${resolvedSettings.mood})...`, steps: prev.steps.map(s => s.id === 'research' ? { ...s, status: 'active' } : s) }));
       let researchData = "";
       try {
-        researchData = await runResearchAgent(processedContext, `${resolvedSettings.mood} - ${resolvedSettings.theme}`);
+        researchData = await runResearchAgent(processedContext, `${resolvedSettings.mood} - ${resolvedSettings.theme}`, activeModel);
       } catch (e) {
         console.warn("Research agent failed, skipping context", e);
       }
       updateAgentStep('research', 'completed');
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Rate limit protection
+      await new Promise(resolve => setTimeout(resolve, 6000)); // Rate limit protection
 
       setAgentStatus(prev => ({ ...prev, currentAgent: "LYRICIST", message: `Composing (${resolvedSettings.style})...`, steps: prev.steps.map(s => s.id === 'lyricist' ? { ...s, status: 'active' } : s) }));
 
-      let messageCreated = false;
       let draftLyrics = "";
 
-      // CRITICAL STEP: Lyric generation
+      // CRITICAL STEP: Lyric generation (NO STREAMING - wait for complete result)
+      console.log(`[ORCHESTRATOR] 🎼 Calling Lyricist Agent in NON-STREAMING mode (no callback)`);
       try {
         draftLyrics = await runLyricistAgent(
           researchData,
@@ -127,43 +159,20 @@ export const useOrchestrator = () => {
           languageSettings,
           emotionData,
           resolvedSettings,
-          (partialText) => {
-            if (!messageCreated) {
-              addMessage({
-                id: finalMsgId,
-                role: "model",
-                content: partialText,
-                senderAgent: "LYRICIST",
-                timestamp: new Date()
-              });
-              messageCreated = true;
-            } else {
-              updateMessage(finalMsgId, { content: partialText });
-            }
-          }
+          undefined, // Don't pass onChunk callback - no streaming during workflow
+          activeModel
         );
 
+        console.log(`[ORCHESTRATOR] 🎼 Lyricist completed. Draft length: ${draftLyrics.length} chars`);
         if (!draftLyrics) throw new GeminiError("The lyricist could not generate any content.", 'SERVER');
       } catch (lyricError) {
         // If the Lyricist fails completely, we must stop and notify.
         throw wrapGenAIError(lyricError);
       }
 
-      // Ensure message exists even if streaming failed but we got final text
-      if (!messageCreated) {
-        addMessage({
-          id: finalMsgId,
-          role: "model",
-          content: draftLyrics,
-          senderAgent: "LYRICIST",
-          timestamp: new Date()
-        });
-      } else {
-        updateMessage(finalMsgId, { content: draftLyrics });
-      }
-
       updateAgentStep('lyricist', 'completed');
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Rate limit protection
+      console.log(`[ORCHESTRATOR] ✅ Lyricist step marked as completed, NOT displaying to user yet`);
+      await new Promise(resolve => setTimeout(resolve, 6000)); // Rate limit protection
 
       // Non-critical steps follow. We wrap them strictly to ensure lyrics are preserved even if post-processing fails.
 
@@ -171,53 +180,63 @@ export const useOrchestrator = () => {
       setAgentStatus(prev => ({ ...prev, currentAgent: "COMPLIANCE", message: "Checking safety...", steps: prev.steps.map(s => s.id === 'compliance' ? { ...s, status: 'active' } : s) }));
       let complianceReport = { originalityScore: 100, flaggedPhrases: [], similarSongs: [], verdict: "Skipped" };
       try {
-        complianceReport = await runComplianceAgent(draftLyrics);
+        complianceReport = await runComplianceAgent(draftLyrics, activeModel);
       } catch (e) {
         console.warn("Compliance check skipped (Non-critical error)", e);
       }
       updateAgentStep('compliance', 'completed');
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Rate limit protection
+      await new Promise(resolve => setTimeout(resolve, 6000)); // Rate limit protection
 
       // REVIEW STEP
       setAgentStatus(prev => ({ ...prev, currentAgent: "REVIEW", message: "Polishing...", steps: prev.steps.map(s => s.id === 'review' ? { ...s, status: 'active' } : s) }));
       let finalLyrics = draftLyrics;
       try {
-        finalLyrics = await runReviewAgent(draftLyrics, processedContext, languageSettings, resolvedSettings);
-        updateMessage(finalMsgId, { content: finalLyrics, senderAgent: "ORCHESTRATOR" });
+        finalLyrics = await runReviewAgent(draftLyrics, processedContext, languageSettings, resolvedSettings, activeModel);
       } catch (e) {
         console.warn("Review step skipped (Non-critical error)", e);
       }
       updateAgentStep('review', 'completed');
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Rate limit protection
+      await new Promise(resolve => setTimeout(resolve, 6000)); // Rate limit protection
 
       // FORMATTER STEP
       setAgentStatus(prev => ({ ...prev, currentAgent: "FORMATTER", message: "Formatting for Suno.com...", steps: prev.steps.map(s => s.id === 'formatter' ? { ...s, status: 'active' } : s) }));
       let sunoData = { stylePrompt: "", formattedLyrics: "" };
       try {
-        sunoData = await runFormatterAgent(finalLyrics);
+        sunoData = await runFormatterAgent(finalLyrics, activeModel);
       } catch (e) {
         console.warn("Formatter step skipped (Non-critical error)", e);
       }
       updateAgentStep('formatter', 'completed');
 
-      // FINAL UPDATE
+      // FINAL ORCHESTRATOR STEP - BUILD COMPLETE SONG
+      setAgentStatus(prev => ({ ...prev, currentAgent: "ORCHESTRATOR", message: "Finalizing complete song...", steps: prev.steps.map(s => s.id === 'final' ? { ...s, status: 'active' } : s) }));
+
       let outputContent = finalLyrics;
       if (complianceReport.originalityScore < 70) {
         outputContent += `\n\n[⚠️ COMPLIANCE ALERT: Originality Score ${complianceReport.originalityScore}%. Some phrases may resemble existing songs.]`;
       }
 
-      updateMessage(finalMsgId, {
+      // NOW CREATE THE FINAL MESSAGE WITH COMPLETE SONG (ONLY ONE MESSAGE, ONLY AT THE END)
+      console.log(`[ORCHESTRATOR] 🎵 NOW DISPLAYING COMPLETE FINAL SONG TO USER (${outputContent.length} chars)`);
+      addMessage({
+        id: finalMsgId,
+        role: "model",
         content: outputContent,
         sunoFormattedContent: sunoData.formattedLyrics,
         sunoStylePrompt: sunoData.stylePrompt,
         complianceReport: complianceReport,
-        senderAgent: "ORCHESTRATOR"
+        senderAgent: "ORCHESTRATOR",
+        timestamp: new Date()
       });
 
-      setAgentStatus(prev => ({ ...prev, currentAgent: "ORCHESTRATOR", message: "Done!", steps: prev.steps.map(s => s.id === 'final' ? { ...s, status: 'completed' } : s) }));
+      console.log(`[ORCHESTRATOR] ✅ Final song message added with ID: ${finalMsgId}`);
+      setAgentStatus(prev => ({ ...prev, currentAgent: "ORCHESTRATOR", message: "Complete song ready!", steps: prev.steps.map(s => s.id === 'final' ? { ...s, status: 'completed' } : s) }));
 
     } catch (error: any) {
-      console.error("Workflow Critical Failure:", error);
+      console.error("[ORCHESTRATOR] 🚫 Workflow Critical Failure:", error);
+      console.error("[ORCHESTRATOR] Error type:", error.constructor.name);
+      console.error("[ORCHESTRATOR] Error message:", error.message);
+      console.error("[ORCHESTRATOR] Stack:", error.stack);
 
       let friendlyMessage = "I encountered a musical block. Please try again.";
 

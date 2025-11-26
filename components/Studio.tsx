@@ -8,7 +8,7 @@ import { AgentType, Message, LanguageProfile, GenerationSettings, AppearanceSett
 import { runChatAgent } from "../agents/chat";
 import { useOrchestrator } from "../hooks/useOrchestrator";
 import { getSafeLocalStorage, setSafeLocalStorage } from "../utils";
-import { DEFAULT_THEMES, SUGGESTION_CHIPS, ENHANCED_PROMPTS, AUTO_OPTION } from "../config";
+import { DEFAULT_THEMES, SUGGESTION_CHIPS, ENHANCED_PROMPTS, AUTO_OPTION, MODEL_NAME } from "../config";
 
 // Component Imports
 import { Sidebar } from "./Sidebar";
@@ -42,7 +42,7 @@ export const Studio = () => {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   // Modals
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
@@ -75,45 +75,45 @@ export const Studio = () => {
 
   // Saved Songs Library - Safe Init
   const [savedSongs, setSavedSongs] = useState<SavedSong[]>(() => {
-      return getSafeLocalStorage("swaz_saved_songs", []);
+    return getSafeLocalStorage("swaz_saved_songs", []);
   });
 
   // Appearance - Safe Init
   const [appearance, setAppearance] = useState<AppearanceSettings>(() => {
     // Ensure structure is valid even if local storage has partial/corrupt data
-    const defaults = { fontSize: 16, themeId: "dark", customThemes: [] };
+    const defaults = { fontSize: 16, themeId: "dark", customThemes: [], selectedModel: MODEL_NAME };
     const saved = getSafeLocalStorage("swaz_appearance", defaults);
     return {
-        ...defaults,
-        ...saved,
-        customThemes: Array.isArray(saved.customThemes) ? saved.customThemes : []
+      ...defaults,
+      ...saved,
+      customThemes: Array.isArray(saved.customThemes) ? saved.customThemes : []
     };
   });
 
   const { agentStatus, runSongGenerationWorkflow } = useOrchestrator();
 
   // --- Effects ---
-  
+
   // Load Theme
   useEffect(() => {
     try {
-        const customThemes = appearance.customThemes || [];
-        const theme = [...DEFAULT_THEMES, ...customThemes].find(t => t.id === appearance.themeId) || DEFAULT_THEMES[0];
-        
-        const root = document.documentElement;
-        if (theme?.colors) {
-            root.style.setProperty('--bg-primary', theme.colors.bgMain);
-            root.style.setProperty('--bg-secondary', theme.colors.bgSidebar);
-            root.style.setProperty('--text-primary', theme.colors.textMain);
-            root.style.setProperty('--text-secondary', theme.colors.textSecondary);
-            root.style.setProperty('--accent-red', theme.colors.accent); 
-            root.style.setProperty('--brand-red-600', theme.colors.accent);
-            root.style.setProperty('--border-default', theme.colors.border);
-        }
-        
-        setSafeLocalStorage("swaz_appearance", appearance);
+      const customThemes = appearance.customThemes || [];
+      const theme = [...DEFAULT_THEMES, ...customThemes].find(t => t.id === appearance.themeId) || DEFAULT_THEMES[0];
+
+      const root = document.documentElement;
+      if (theme?.colors) {
+        root.style.setProperty('--bg-primary', theme.colors.bgMain);
+        root.style.setProperty('--bg-secondary', theme.colors.bgSidebar);
+        root.style.setProperty('--text-primary', theme.colors.textMain);
+        root.style.setProperty('--text-secondary', theme.colors.textSecondary);
+        root.style.setProperty('--accent-red', theme.colors.accent);
+        root.style.setProperty('--brand-red-600', theme.colors.accent);
+        root.style.setProperty('--border-default', theme.colors.border);
+      }
+
+      setSafeLocalStorage("swaz_appearance", appearance);
     } catch (e) {
-        console.warn("Theme application warning:", e);
+      console.warn("Theme application warning:", e);
     }
   }, [appearance]);
 
@@ -124,9 +124,9 @@ export const Studio = () => {
   // Auto-scroll
   useEffect(() => {
     if (messagesEndRef.current) {
-        try {
-            messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-        } catch(e) { /* ignore scroll error */ }
+      try {
+        messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+      } catch (e) { /* ignore scroll error */ }
     }
   }, [messages, agentStatus]);
 
@@ -138,7 +138,9 @@ export const Studio = () => {
 
   const handleSendMessage = async (text: string = input) => {
     if (!text.trim() && !selectedImage) return;
-    
+
+    console.log(`[STUDIO] 📤 User sent message: "${text.substring(0, 50)}..."`);
+
     const newUserMsg: Message = {
       id: Date.now().toString(),
       role: "user",
@@ -153,19 +155,35 @@ export const Studio = () => {
     const lowerText = text.toLowerCase();
     const triggers = ["song", "lyrics", "write", "compose", "create", "generate", "ballad", "rap", "anthem"];
     const isSongRequest = triggers.some(t => lowerText.includes(t));
+    console.log(`[STUDIO] Detected as ${isSongRequest ? 'SONG REQUEST' : 'CHAT REQUEST'}`);
+
+    // Use selected model or default
+    const activeModel = appearance.selectedModel || MODEL_NAME;
 
     if (isSongRequest) {
       await runSongGenerationWorkflow(
-        text, 
-        languageSettings, 
-        generationSettings, 
-        (msg) => setMessages(prev => [...prev, msg]), 
-        updateMessage 
+        text,
+        languageSettings,
+        generationSettings,
+        (msg) => setMessages(prev => [...prev, msg]),
+        updateMessage,
+        activeModel // Pass model to orchestrator
       );
       setSelectedImage(null);
     } else {
       try {
-        const response = await runChatAgent(text, messages, { image: selectedImage ? selectedImage.split(',')[1] : undefined });
+        const response = await runChatAgent(
+          text, 
+          messages, 
+          { 
+            image: selectedImage ? selectedImage.split(',')[1] : undefined,
+            context: {
+              language: languageSettings,
+              generation: generationSettings
+            },
+            modelName: activeModel // Pass model to chat agent
+          }
+        );
         const newAiMsg: Message = {
           id: (Date.now() + 1).toString(),
           role: "model",
@@ -189,43 +207,43 @@ export const Studio = () => {
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     try {
-        const file = e.target.files?.[0];
-        if (file) {
+      const file = e.target.files?.[0];
+      if (file) {
         const reader = new FileReader();
         reader.onloadend = () => setSelectedImage(reader.result as string);
         reader.readAsDataURL(file);
-        }
-    } catch(e) {
-        console.error("Image upload failed", e);
-        alert("Failed to load image. Please try another one.");
+      }
+    } catch (e) {
+      console.error("Image upload failed", e);
+      alert("Failed to load image. Please try another one.");
     }
   };
 
   const handleSaveSong = (data: any) => {
-     const newSong: SavedSong = {
-        id: Date.now().toString(),
-        timestamp: Date.now(),
-        ...data
-     };
-     setSavedSongs([newSong, ...savedSongs]);
+    const newSong: SavedSong = {
+      id: Date.now().toString(),
+      timestamp: Date.now(),
+      ...data
+    };
+    setSavedSongs([newSong, ...savedSongs]);
   };
 
   const handleLoadSong = (song: SavedSong) => {
-     const msg: Message = {
-        id: Date.now().toString(),
-        role: "model",
-        content: song.content,
-        sunoFormattedContent: song.sunoContent,
-        sunoStylePrompt: song.sunoStylePrompt,
-        lyricsData: { title: song.title, language: song.language },
-        timestamp: new Date(),
-        senderAgent: "ORCHESTRATOR"
-     };
-     setMessages(prev => [...prev, msg]);
+    const msg: Message = {
+      id: Date.now().toString(),
+      role: "model",
+      content: song.content,
+      sunoFormattedContent: song.sunoContent,
+      sunoStylePrompt: song.sunoStylePrompt,
+      lyricsData: { title: song.title, language: song.language },
+      timestamp: new Date(),
+      senderAgent: "ORCHESTRATOR"
+    };
+    setMessages(prev => [...prev, msg]);
   };
-  
+
   const handleDeleteSong = (id: string) => {
-     setSavedSongs(savedSongs.filter(s => s.id !== id));
+    setSavedSongs(savedSongs.filter(s => s.id !== id));
   };
 
   // Studio Welcome Component...
@@ -245,7 +263,7 @@ export const Studio = () => {
         </p>
       </div>
       <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto pt-4">
-        <button 
+        <button
           onClick={() => document.getElementById("studio-input")?.focus()}
           className="px-8 py-4 bg-primary text-primary-foreground rounded-xl font-bold text-sm shadow-lg shadow-primary/25 hover:scale-105 hover:shadow-primary/40 transition-all flex items-center justify-center gap-2"
         >
@@ -259,12 +277,12 @@ export const Studio = () => {
           <div className="text-sm font-bold">Enterprise-Grade Privacy</div>
         </div>
         <div className="flex flex-col items-center gap-3">
-           <div className="p-3 bg-blue-500/10 rounded-full text-blue-600"><CheckCircle className="w-5 h-5" /></div>
-           <div className="text-sm font-bold">99.9% Originality Score</div>
+          <div className="p-3 bg-blue-500/10 rounded-full text-blue-600"><CheckCircle className="w-5 h-5" /></div>
+          <div className="text-sm font-bold">99.9% Originality Score</div>
         </div>
-         <div className="flex flex-col items-center gap-3">
-           <div className="p-3 bg-purple-500/10 rounded-full text-purple-600"><Zap className="w-5 h-5" /></div>
-           <div className="text-sm font-bold">24/7 Creative Support</div>
+        <div className="flex flex-col items-center gap-3">
+          <div className="p-3 bg-purple-500/10 rounded-full text-purple-600"><Zap className="w-5 h-5" /></div>
+          <div className="text-sm font-bold">24/7 Creative Support</div>
         </div>
       </div>
     </div>
@@ -272,17 +290,17 @@ export const Studio = () => {
 
   return (
     <div className="flex h-screen bg-background text-foreground font-sans overflow-hidden" style={{ fontSize: `${appearance.fontSize}px` }}>
-      
+
       {/* Sidebar - Isolated Error Boundary */}
       <ErrorBoundary scope="Sidebar">
-        <Sidebar 
-          isOpen={isSidebarOpen} 
+        <Sidebar
+          isOpen={isSidebarOpen}
           onClose={() => setIsSidebarOpen(false)}
           agentStatus={agentStatus}
           languageSettings={languageSettings}
-          onLanguageChange={(k, v) => setLanguageSettings(prev => ({...prev, [k]: v}))}
+          onLanguageChange={(k, v) => setLanguageSettings(prev => ({ ...prev, [k]: v }))}
           generationSettings={generationSettings}
-          onSettingChange={(k, v) => setGenerationSettings(prev => ({...prev, [k]: v}))}
+          onSettingChange={(k, v) => setGenerationSettings(prev => ({ ...prev, [k]: v }))}
           onLoadProfile={(l, g) => {
             setLanguageSettings(l);
             setGenerationSettings(g);
@@ -311,20 +329,20 @@ export const Studio = () => {
             <div className="flex items-center gap-2 px-3 py-1 bg-secondary/50 rounded-full border border-border/50">
               <Globe className="w-4 h-4 text-primary" />
               <span className="text-xs font-medium">
-                {languageSettings.primary} 
+                {languageSettings.primary}
                 {languageSettings.secondary !== languageSettings.primary && ` + ${languageSettings.secondary}`}
               </span>
             </div>
             {generationSettings.ceremony && (
-               <div className="flex items-center gap-2 px-3 py-1 bg-purple-500/10 text-purple-500 rounded-full border border-purple-500/20">
-                 <Sparkles className="w-3.5 h-3.5" />
-                 <span className="text-xs font-bold truncate max-w-[150px]">{generationSettings.theme}</span>
-               </div>
+              <div className="flex items-center gap-2 px-3 py-1 bg-purple-500/10 text-purple-500 rounded-full border border-purple-500/20">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span className="text-xs font-bold truncate max-w-[150px]">{generationSettings.theme}</span>
+              </div>
             )}
           </div>
-          
+
           <div className="flex items-center gap-2">
-            <button 
+            <button
               onClick={() => setIsSettingsOpen(true)}
               className="p-2 rounded-full transition-colors hover:bg-secondary text-muted-foreground"
               title="Theme Settings"
@@ -338,7 +356,7 @@ export const Studio = () => {
         <main className="flex-1 overflow-y-auto p-4 md:p-6 relative z-10 scrollbar-thin scrollbar-thumb-border">
           <ErrorBoundary scope="Chat Area">
             {messages.length === 0 ? (
-               <StudioWelcome />
+              <StudioWelcome />
             ) : (
               <div className="max-w-3xl mx-auto space-y-6 pb-10">
                 {messages.map((msg) => (
@@ -346,58 +364,57 @@ export const Studio = () => {
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-1 shadow-sm ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-secondary border border-border"}`}>
                       {msg.role === "user" ? <User className="w-4 h-4" /> : renderAgentIcon(msg.senderAgent)}
                     </div>
-                    
+
                     <div className={`flex flex-col max-w-[85%] sm:max-w-[75%] ${msg.role === "user" ? "items-end" : "items-start"}`}>
-                      <div className={`p-4 rounded-2xl shadow-sm text-sm leading-relaxed whitespace-pre-wrap border ${
-                        msg.role === "user" 
-                          ? "bg-primary text-primary-foreground border-transparent rounded-tr-none" 
+                      <div className={`p-4 rounded-2xl shadow-sm text-sm leading-relaxed whitespace-pre-wrap border select-text ${msg.role === "user"
+                          ? "bg-primary text-primary-foreground border-transparent rounded-tr-none"
                           : "glass-panel text-foreground rounded-tl-none"
-                      }`}>
+                        }`}>
                         <ErrorBoundary scope="Message Content" fallback={<p className="text-red-500 italic">Error rendering message content.</p>}>
-                            {/* Render Special Content: Lyrics or Normal Text */}
-                            {msg.lyricsData || (msg.senderAgent === "LYRICIST" || msg.senderAgent === "ORCHESTRATOR") ? (
-                               <LyricsRenderer 
-                                  content={msg.content} 
-                                  sunoContent={msg.sunoFormattedContent}
-                                  sunoStylePrompt={msg.sunoStylePrompt}
-                                  onSave={handleSaveSong}
-                               />
-                            ) : (
-                               msg.content
-                            )}
+                          {/* Render Special Content: Lyrics or Normal Text */}
+                          {msg.lyricsData || (msg.senderAgent === "LYRICIST" || msg.senderAgent === "ORCHESTRATOR") ? (
+                            <LyricsRenderer
+                              content={msg.content}
+                              sunoContent={msg.sunoFormattedContent}
+                              sunoStylePrompt={msg.sunoStylePrompt}
+                              onSave={handleSaveSong}
+                            />
+                          ) : (
+                            msg.content
+                          )}
                         </ErrorBoundary>
                       </div>
-                      
+
                       <div className="flex items-center gap-2 mt-1.5 ml-1">
                         <span className="text-[10px] text-muted-foreground opacity-60">
-                          {msg.senderAgent ? `${msg.senderAgent} • ` : ""} {msg.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                          {msg.senderAgent ? `${msg.senderAgent} • ` : ""} {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
 
                       {msg.complianceReport && msg.complianceReport.originalityScore < 80 && (
-                          <div className="mt-2 text-xs flex items-center gap-2 text-amber-600 bg-amber-50 dark:bg-amber-900/20 px-3 py-1.5 rounded-full border border-amber-200 dark:border-amber-800">
-                             <ShieldCheck className="w-3.5 h-3.5" />
-                             <span>Originality Score: {msg.complianceReport.originalityScore}%</span>
-                          </div>
+                        <div className="mt-2 text-xs flex items-center gap-2 text-amber-600 bg-amber-50 dark:bg-amber-900/20 px-3 py-1.5 rounded-full border border-amber-200 dark:border-amber-800">
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                          <span>Originality Score: {msg.complianceReport.originalityScore}%</span>
+                        </div>
                       )}
                     </div>
                   </div>
                 ))}
-                
+
                 {agentStatus.active && (
                   <div className="flex justify-start">
-                     <WorkflowStatus status={agentStatus} />
+                    <WorkflowStatus status={agentStatus} />
                   </div>
                 )}
 
                 {isLoading && !agentStatus.active && (
                   <div className="flex gap-4">
-                     <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center"><Bot className="w-4 h-4 animate-pulse" /></div>
-                     <div className="glass-panel p-3 rounded-2xl rounded-tl-none flex items-center gap-2">
-                        <span className="w-2 h-2 bg-primary rounded-full animate-bounce" />
-                        <span className="w-2 h-2 bg-primary rounded-full animate-bounce delay-100" />
-                        <span className="w-2 h-2 bg-primary rounded-full animate-bounce delay-200" />
-                     </div>
+                    <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center"><Bot className="w-4 h-4 animate-pulse" /></div>
+                    <div className="glass-panel p-3 rounded-2xl rounded-tl-none flex items-center gap-2">
+                      <span className="w-2 h-2 bg-primary rounded-full animate-bounce" />
+                      <span className="w-2 h-2 bg-primary rounded-full animate-bounce delay-100" />
+                      <span className="w-2 h-2 bg-primary rounded-full animate-bounce delay-200" />
+                    </div>
                   </div>
                 )}
                 <div ref={messagesEndRef} />
@@ -409,75 +426,75 @@ export const Studio = () => {
         {/* Input Area */}
         <footer className="p-4 bg-background/60 backdrop-blur-md border-t border-border z-20">
           <div className="max-w-3xl mx-auto relative">
-             {selectedImage && (
-               <div className="absolute bottom-full left-0 mb-2 p-2 bg-secondary rounded-lg shadow-lg flex items-start gap-2 animate-in slide-in-from-bottom-2">
-                  <img src={selectedImage} alt="Preview" className="h-16 w-16 object-cover rounded-md" />
-                  <button onClick={() => setSelectedImage(null)} className="p-1 bg-background rounded-full hover:text-destructive"><X className="w-3 h-3" /></button>
-               </div>
-             )}
-             
-             {messages.length === 0 && (
-               <div className="flex gap-2 overflow-x-auto pb-3 scrollbar-hide mask-linear-fade">
-                  {SUGGESTION_CHIPS["default"].map(chip => (
-                    <button 
-                      key={chip}
-                      onClick={() => handleSendMessage(ENHANCED_PROMPTS[chip] || chip)}
-                      className="whitespace-nowrap px-3 py-1.5 bg-secondary/50 hover:bg-secondary text-xs font-medium text-muted-foreground hover:text-primary rounded-full border border-border transition-colors"
-                    >
-                      {chip}
-                    </button>
-                  ))}
-               </div>
-             )}
+            {selectedImage && (
+              <div className="absolute bottom-full left-0 mb-2 p-2 bg-secondary rounded-lg shadow-lg flex items-start gap-2 animate-in slide-in-from-bottom-2">
+                <img src={selectedImage} alt="Preview" className="h-16 w-16 object-cover rounded-md" />
+                <button onClick={() => setSelectedImage(null)} className="p-1 bg-background rounded-full hover:text-destructive"><X className="w-3 h-3" /></button>
+              </div>
+            )}
 
-             <div className="glass-panel p-1.5 rounded-2xl flex items-center gap-2 shadow-lg ring-1 ring-white/10">
-                <button 
-                  onClick={() => fileInputRef.current?.click()}
-                  className="p-2.5 text-muted-foreground hover:text-primary hover:bg-secondary/50 rounded-xl transition-colors"
-                  title="Upload Image for context"
-                >
-                  <span className="sr-only">Upload</span>
-                  <div className="w-5 h-5 border-2 border-current border-dashed rounded-md flex items-center justify-center">
-                    <span className="text-[10px] font-bold">+</span>
-                  </div>
-                </button>
-                <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
+            {messages.length === 0 && (
+              <div className="flex gap-2 overflow-x-auto pb-3 scrollbar-hide mask-linear-fade">
+                {SUGGESTION_CHIPS["default"].map(chip => (
+                  <button
+                    key={chip}
+                    onClick={() => handleSendMessage(ENHANCED_PROMPTS[chip] || chip)}
+                    className="whitespace-nowrap px-3 py-1.5 bg-secondary/50 hover:bg-secondary text-xs font-medium text-muted-foreground hover:text-primary rounded-full border border-border transition-colors"
+                  >
+                    {chip}
+                  </button>
+                ))}
+              </div>
+            )}
 
-                <input 
-                  id="studio-input"
-                  type="text" 
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-                  placeholder="Describe the song (e.g., 'Sad breakup song in rain')..."
-                  disabled={isLoading || agentStatus.active}
-                  className="flex-1 bg-transparent border-none focus:ring-0 text-foreground placeholder-muted-foreground text-sm px-2"
-                />
-                
-                <button 
-                  onClick={() => handleSendMessage()}
-                  disabled={(!input && !selectedImage) || isLoading}
-                  className="p-2.5 bg-primary text-primary-foreground rounded-xl hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md"
-                >
-                  <Send className="w-4 h-4" />
-                </button>
-             </div>
-             <div className="text-center mt-2">
-               <p className="text-[10px] text-muted-foreground opacity-60">
-                 SWAZ AI can make mistakes. Check generated lyrics for accuracy.
-               </p>
-             </div>
+            <div className="glass-panel p-1.5 rounded-2xl flex items-center gap-2 shadow-lg ring-1 ring-white/10">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="p-2.5 text-muted-foreground hover:text-primary hover:bg-secondary/50 rounded-xl transition-colors"
+                title="Upload Image for context"
+              >
+                <span className="sr-only">Upload</span>
+                <div className="w-5 h-5 border-2 border-current border-dashed rounded-md flex items-center justify-center">
+                  <span className="text-[10px] font-bold">+</span>
+                </div>
+              </button>
+              <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
+
+              <input
+                id="studio-input"
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+                placeholder="Describe the song (e.g., 'Sad breakup song in rain')..."
+                disabled={isLoading || agentStatus.active}
+                className="flex-1 bg-transparent border-none focus:ring-0 text-foreground placeholder-muted-foreground text-sm px-2"
+              />
+
+              <button
+                onClick={() => handleSendMessage()}
+                disabled={(!input && !selectedImage) || isLoading}
+                className="p-2.5 bg-primary text-primary-foreground rounded-xl hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="text-center mt-2">
+              <p className="text-[10px] text-muted-foreground opacity-60">
+                SWAZ AI can make mistakes. Check generated lyrics for accuracy.
+              </p>
+            </div>
           </div>
         </footer>
       </div>
 
-      <SettingsModal 
-        isOpen={isSettingsOpen} 
+      <SettingsModal
+        isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         settings={appearance}
         onUpdateSettings={setAppearance}
       />
-      <HelpModal 
+      <HelpModal
         isOpen={isHelpOpen}
         onClose={() => setIsHelpOpen(false)}
       />

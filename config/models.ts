@@ -4,9 +4,22 @@
  * Centralized model names and API versions
  */
 
-// Primary models
-export const MODEL_NAME = "gemini-3-pro-preview";
-export const MODEL_FAST = "gemini-2.5-flash";
+// Available Models - Loaded from environment variables
+// These are display names only, actual model selection uses environment variables
+export const AVAILABLE_MODELS = [
+    { 
+        id: import.meta.env.VITE_GOOGLE_GENAI_MODEL || "gemini-2.5-flash", 
+        name: "Gemini 2.5 Flash" 
+    },
+    { 
+        id: import.meta.env.VITE_GOOGLE_GENAI_MODEL_SECONDARY || "gemini-2.5-pro", 
+        name: "Gemini 2.5 Pro" 
+    },
+];
+
+// Primary models - Always from environment variables
+export const MODEL_NAME = import.meta.env.VITE_GOOGLE_GENAI_MODEL || "gemini-2.5-flash"; // Default fallback
+export const MODEL_FAST = import.meta.env.VITE_GOOGLE_GENAI_MODEL_SECONDARY || "gemini-2.5-pro"; // Default fallback
 export const PROMPT_VERSION = "2.1.0";
 
 // Model-specific configurations
@@ -24,9 +37,9 @@ export const MODEL_CONFIGS = {
     }
 };
 
-// Audio/TTS models
-export const TTS_MODEL = "gemini-2.5-flash-preview-tts";
-export const IMAGE_MODEL = "imagen-4.0-generate-001";
+// Audio/TTS models - Use environment variables when available
+export const TTS_MODEL = import.meta.env.VITE_TTS_MODEL || "gemini-2.5-flash-preview-tts";
+export const IMAGE_MODEL = import.meta.env.VITE_IMAGE_MODEL || "imagen-4.0-generate-001";
 
 // Suno/Audio defaults
 export const DEFAULT_HQ_TAGS = "DTS, Dolby Atmos, Immersive Experience, High Fidelity, Spatial Audio, Masterpiece";

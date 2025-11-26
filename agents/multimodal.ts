@@ -2,12 +2,16 @@
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { MODEL_NAME, SYSTEM_INSTRUCTION_MULTIMODAL } from "../config";
 import { getApiKey, retryWithBackoff, wrapGenAIError } from "../utils";
+import { checkRateLimit, recordRequest } from "../utils/rate-limiter";
 
-export const runMultiModalAgent = async (input: string, image?: string, audio?: string): Promise<string> => {
+export const runMultiModalAgent = async (input: string, image?: string, audio?: string, modelName?: string): Promise<string> => {
+  const activeModel = modelName || MODEL_NAME;
+  checkRateLimit('default');
   // If no media is provided, just return the text input
   if (!image && !audio) return input;
 
-  const key = getApiKey();
+  recordRequest('default'); // Record attempt immediately to track all requests including failures
+  const key = await getApiKey();
   const ai = new GoogleGenAI({ apiKey: key });
   
   const parts: any[] = [{ text: `User Text Context: ${input}` }];
@@ -26,7 +30,7 @@ export const runMultiModalAgent = async (input: string, image?: string, audio?: 
 
   try {
     const response = await retryWithBackoff(async () => await ai.models.generateContent({
-      model: MODEL_NAME,
+      model: activeModel,
       config: { systemInstruction: SYSTEM_INSTRUCTION_MULTIMODAL },
       contents: [{ role: "user", parts: parts }]
     })) as GenerateContentResponse;

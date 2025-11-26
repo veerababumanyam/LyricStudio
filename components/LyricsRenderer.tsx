@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import { Music, Copy, RefreshCw, Sparkles, Clock, ListMusic, FileCode, Eye, Loader2, Download, Printer, Share2, Edit3, Wand2, Check, Image as ImageIcon2, XCircle, CheckCircle2, Bookmark } from "lucide-react";
 import { GoogleGenAI } from "@google/genai";
 import { MODEL_NAME, MODEL_FAST } from "../config";
-import { wrapGenAIError } from "../utils";
+import { wrapGenAIError, getApiKey } from "../utils";
 import { checkRateLimit, recordRequest } from "../utils/rate-limiter";
 import { runArtAgent } from "../agents/art";
 import { runStyleAgent } from "../agents/style";
@@ -278,15 +278,14 @@ export const LyricsRenderer = ({
     try {
       // Check rate limit before making the request
       checkRateLimit('default');
+      recordRequest('default'); // Record attempt immediately
 
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const apiKey = await getApiKey();
+      const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
         model: MODEL_FAST, // Use FAST model for responsiveness
         contents: `Review the following song lyrics. Identify lines that have weak rhymes (Anthya Prasa). Rewrite ONLY those specific lines to have better rhyming endings while keeping the same meaning. Output the FULL improved lyrics. \n\n ${editableContent}`
       });
-
-      // Record successful request
-      recordRequest('default');
 
       if (response.text) {
         setEditableContent(response.text);

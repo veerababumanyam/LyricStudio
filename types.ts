@@ -53,6 +53,7 @@ export interface AppearanceSettings {
   fontSize: number; // Base pixel size (default 16)
   themeId: string;
   customThemes: AppTheme[];
+  selectedModel?: string; // New: User selected model
 }
 
 // --- Lyricist Specific Types ---

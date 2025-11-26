@@ -1,8 +1,9 @@
 import React, { useState } from "react";
-import { X, Type, Palette, Sparkles, Check, Loader2, Undo2, Key } from "lucide-react";
+import { X, Type, Palette, Sparkles, Check, Loader2, Undo2, Key, Cpu } from "lucide-react";
 import { AppearanceSettings } from "../types";
 import { runThemeAgent } from "../agents/theme";
 import { DEFAULT_THEMES } from "../config";
+import { AVAILABLE_MODELS, MODEL_NAME } from "../config/models";
 import { APIKeyManager } from "./APIKeyManager";
 
 interface SettingsModalProps {
@@ -24,6 +25,10 @@ export const SettingsModal = ({ isOpen, onClose, settings, onUpdateSettings }: S
 
   const handleThemeSelect = (themeId: string) => {
     onUpdateSettings({ ...settings, themeId });
+  };
+
+  const handleModelSelect = (modelId: string) => {
+    onUpdateSettings({ ...settings, selectedModel: modelId });
   };
 
   const handleGenerateTheme = async () => {
@@ -60,6 +65,36 @@ export const SettingsModal = ({ isOpen, onClose, settings, onUpdateSettings }: S
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-8">
+
+          {/* AI Model Section */}
+          <section>
+            <h3 className="flex items-center gap-2 text-lg font-medium mb-4 text-white">
+              <Cpu className="w-5 h-5 text-red-500" /> AI Model Selection
+            </h3>
+            <div className="p-4 rounded-xl border-2" style={{ backgroundColor: '#1A1A1A', borderColor: 'rgba(255, 255, 255, 0.1)' }}>
+              <div className="grid gap-3">
+                {AVAILABLE_MODELS.map((model) => (
+                  <button
+                    key={model.id}
+                    onClick={() => handleModelSelect(model.id)}
+                    className={`flex items-center justify-between p-3 rounded-lg border transition-all ${
+                      (settings.selectedModel || MODEL_NAME) === model.id
+                        ? "border-red-500 bg-red-500/10"
+                        : "border-white/10 hover:bg-white/5"
+                    }`}
+                  >
+                    <span className="font-medium">{model.name}</span>
+                    {(settings.selectedModel || MODEL_NAME) === model.id && (
+                      <Check className="w-4 h-4 text-red-500" />
+                    )}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-gray-400 mt-3">
+                Note: "Pro" models provide higher quality lyrics but may be slower. "Flash" models are faster.
+              </p>
+            </div>
+          </section>
 
           {/* Font Size Section */}
           <section>

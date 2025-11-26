@@ -59,12 +59,22 @@ Built for the modern AI musician.
     npm install
     ```
 
-3.  **Run the development server**
+3.  **Configure Environment Variables**
+    ```bash
+    # Copy the example environment file
+    cp .env.example .env
+    
+    # Edit .env and add your API key
+    # GEMINI_API_KEY=your_api_key_here
+    # VITE_GOOGLE_GENAI_MODEL=gemini-2.5-flash
+    ```
+
+4.  **Run the development server**
     ```bash
     npm run dev
     ```
 
-4.  **Configure API Key**
+5.  **Configure API Key (Alternative)**
     *   Open the app in your browser.
     *   Click the **Settings (Gear)** icon.
     *   Go to the **AI Connection** tab.
@@ -97,8 +107,9 @@ Watch the **Workflow Status** bar as the agents (Emotion -> Research -> Lyricist
 ## 🏗️ Tech Stack
 
 *   **Frontend:** React 19, TypeScript, Vite
-*   **Styling:** Tailwind CSS, Lucide React (Icons)
+*   **Styling:** Tailwind CSS (PostCSS), Lucide React (Icons)
 *   **AI Core:** `@google/genai` SDK
+*   **Models:** Configurable via `.env` - All model references use environment variables
 *   **Models:** 
     *   `gemini-3-pro-preview` (Reasoning & Composition)
     *   `gemini-2.5-flash` (Speed & Tooling)

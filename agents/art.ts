@@ -2,13 +2,16 @@
 import { GoogleGenAI, GenerateContentResponse, GenerateImagesResponse } from "@google/genai";
 import { MODEL_NAME, MODEL_FAST } from "../config";
 import { getApiKey, retryWithBackoff, wrapGenAIError } from "../utils";
+import { checkRateLimit, recordRequest } from "../utils/rate-limiter";
 
 export const runArtAgent = async (
   title: string, 
   lyricsSnippet: string, 
   mood: string
 ): Promise<string | null> => {
-  const key = getApiKey();
+  checkRateLimit('art');
+  recordRequest('art'); // Record attempt immediately to track all requests including failures
+  const key = await getApiKey();
   const ai = new GoogleGenAI({ apiKey: key });
 
   try {

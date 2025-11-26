@@ -35,12 +35,13 @@
     <!-- Fonts with display swap for better performance -->
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Noto+Sans+Telugu:wght@400;500;700&family=Noto+Serif+Telugu:wght@400;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet" />
     
-    <script src="https://cdn.tailwindcss.com"></script>
     <script>
       // Polyfill process for browser environment to prevent crashes
       window.process = window.process || { env: { NODE_ENV: 'production' } };
 
-      tailwind.config = {
+      // Tailwind is now properly installed and configured via tailwind.config.js
+      // This inline config is no longer needed but keeping structure for reference
+      var tailwind = { config: {
         darkMode: 'class',
         theme: {
           extend: {
@@ -116,14 +117,12 @@
             }
           }
         }
-      }
+      }};
     </script>
-    <style type="text/tailwindcss">
-      @layer base {
-        :root {
-          /* === BRAND COLORS === */
-          --brand-red-900: #7F1D1D;
-          --brand-red-800: #991B1B;
+    
+    <!-- All styles moved to global.css for proper Tailwind PostCSS processing -->
+    
+    <script type="importmap">
           --brand-red-700: #B91C1C;
           --brand-red-600: #DC2626;
           --brand-red-500: #EF4444;
@@ -492,21 +491,6 @@
           90deg,
           var(--glass-surface) 0%,
           var(--glass-surface-hover) 50%,
-          var(--glass-surface) 100%
-        );
-        background-size: 200% 100%;
-        animation: shimmer 1.5s infinite;
-      }
-
-      /* Print Styles */
-      @media print {
-        .no-print {
-          display: none !important;
-        }
-      }
-    </style>
-    
-    <script type="importmap">
 {
   "imports": {
     "react": "https://esm.sh/react@18.3.1",
@@ -543,7 +527,6 @@
         document.documentElement.classList.toggle('dark', theme === 'dark');
       })();
     </script>
-  <link rel="stylesheet" href="/index.css">
 </head>
   <body class="transition-colors duration-300 bg-background text-foreground">
     <!-- Loading Screen (Optional - Remove if not needed) -->
