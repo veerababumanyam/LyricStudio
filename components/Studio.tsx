@@ -132,8 +132,14 @@ export const Studio = () => {
 
 
   // --- Handlers ---
-  const updateMessage = useCallback((id: string, newContent: Partial<Message>) => {
-    setMessages(prev => prev.map(msg => msg.id === id ? { ...msg, ...newContent } : msg));
+  const updateMessage = useCallback((id: string, updater: Partial<Message> | ((prev: Message) => Partial<Message>)) => {
+    setMessages(prev => prev.map(msg => {
+      if (msg.id === id) {
+        const updates = typeof updater === 'function' ? updater(msg) : updater;
+        return { ...msg, ...updates };
+      }
+      return msg;
+    }));
   }, []);
 
   const handleSendMessage = async (text: string = input) => {
