@@ -3,6 +3,8 @@ import { Music, X, Feather, CheckCircle, Languages, Sparkles, Mic2, Heart, Palet
 import { AgentStatus, LanguageProfile, GenerationSettings, SavedProfile, SavedSong } from "../types";
 import { SCENARIO_KNOWLEDGE_BASE, CeremonyDefinition, MOOD_OPTIONS, STYLE_OPTIONS, COMPLEXITY_OPTIONS, RHYME_SCHEME_OPTIONS, SINGER_CONFIG_OPTIONS, THEME_OPTIONS } from "../config";
 import { APP_LOGO } from "../assets/logo";
+import { ContextManager } from "./ContextManager";
+import { getContextById } from "../utils/context-storage";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -204,7 +206,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
     onSettingChange('complexity', event.defaultComplexity);
     onSettingChange('rhymeScheme', event.defaultRhyme);
     onSettingChange('singerConfig', event.defaultSinger);
+    // Clear custom context when using built-in ceremony
+    onSettingChange('customContextId', '');
+    onSettingChange('customSubContextId', '');
     setAutoConfigured(true);
+  };
+
+  const handleCustomContextSelect = (contextId: string, subContextId: string) => {
+    const { context, subContext } = getContextById(contextId, subContextId);
+    
+    if (context && subContext) {
+      // Apply custom context settings
+      onSettingChange('customContextId', contextId);
+      onSettingChange('customSubContextId', subContextId);
+      onSettingChange('category', 'custom');
+      onSettingChange('ceremony', subContextId);
+      
+      // Apply default settings if provided
+      if (subContext.defaultMood) onSettingChange('mood', subContext.defaultMood);
+      if (subContext.defaultStyle) onSettingChange('style', subContext.defaultStyle);
+      if (subContext.defaultComplexity) onSettingChange('complexity', subContext.defaultComplexity);
+      if (subContext.defaultRhyme) onSettingChange('rhymeScheme', subContext.defaultRhyme);
+      if (subContext.defaultSinger) onSettingChange('singerConfig', subContext.defaultSinger);
+      
+      setAutoConfigured(true);
+    }
   };
 
   const languages = [
@@ -312,15 +338,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           </SidebarSection>
 
-          {/* Context */}
+          {/* Context - Built-in Scenarios */}
           <SidebarSection
-            title="Context"
+            title="Built-in Contexts"
             icon={<Coffee />}
-            defaultOpen={true}
+            defaultOpen={false}
             fontSize={fontSize}
-            badge={autoConfigured && (
+            badge={autoConfigured && generationSettings.category !== 'custom' && (
               <span className="flex items-center gap-1 bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded-full animate-pulse border border-emerald-500/20 text-[10px]">
-                <Wand2 className="w-2.5 h-2.5" /> Optimized
+                <Wand2 className="w-2.5 h-2.5" /> Active
               </span>
             )}
           >
@@ -341,11 +367,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <button
                           key={event.id}
                           onClick={() => handleCeremonySelect(category.id, event)}
-                          className={`w-full text-left px-3 py-2 rounded-lg font-medium flex justify-between transition-colors ${generationSettings.ceremony === event.id ? "bg-primary text-white font-bold" : "bg-card hover:bg-secondary text-foreground"}`}
+                          className={`w-full text-left px-3 py-2 rounded-lg font-medium flex justify-between transition-colors ${generationSettings.ceremony === event.id && generationSettings.category !== 'custom' ? "bg-primary text-white font-bold" : "bg-card hover:bg-secondary text-foreground"}`}
                           style={{ fontSize: `${fontSize * 0.875}px` }}
                         >
                           {event.label}
-                          {generationSettings.ceremony === event.id && <CheckCircle className="w-4 h-4" />}
+                          {generationSettings.ceremony === event.id && generationSettings.category !== 'custom' && <CheckCircle className="w-4 h-4" />}
                         </button>
                       ))}
                     </div>
@@ -353,6 +379,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
               ))}
             </div>
+          </SidebarSection>
+
+          {/* Custom Contexts - New Dynamic System */}
+          <SidebarSection
+            title="Music Library"
+            icon={<Music />}
+            defaultOpen={true}
+            fontSize={fontSize}
+            badge={generationSettings.category === 'custom' && (
+              <span className="flex items-center gap-1 bg-primary/10 text-primary px-2 py-0.5 rounded-full border border-primary/20 text-[10px] font-bold">
+                <Sparkles className="w-2.5 h-2.5" /> Custom
+              </span>
+            )}
+          >
+            <ContextManager
+              onSelectContext={handleCustomContextSelect}
+              selectedContextId={generationSettings.customContextId}
+              selectedSubContextId={generationSettings.customSubContextId}
+              fontSize={fontSize}
+            />
           </SidebarSection>
 
           {/* Fine Tuning */}

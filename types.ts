@@ -1,4 +1,5 @@
-
+// Export custom context types
+export * from './types/context';
 
 export type AgentType = "CHAT" | "RESEARCH" | "LYRICIST" | "REVIEW" | "ORCHESTRATOR" | "EMOTION" | "COMPLIANCE" | "MULTIMODAL" | "FORMATTER";
 
@@ -68,6 +69,10 @@ export interface GenerationSettings {
   // Contextual Engine
   category: string; // e.g., "Wedding", "Milestone"
   ceremony: string; // e.g., "Thalambralu", "Sasti Purthi"
+  
+  // Custom Context System (NEW)
+  customContextId?: string; // ID of custom context
+  customSubContextId?: string; // ID of selected sub-context
   
   // Fallbacks/Overlays
   theme: string;

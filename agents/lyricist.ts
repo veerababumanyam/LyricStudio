@@ -5,6 +5,7 @@ import { GeneratedLyrics, LanguageProfile, EmotionAnalysis, GenerationSettings }
 import { cleanAndParseJSON, formatLyricsForDisplay, wrapGenAIError, getApiKey, retryWithBackoff, GeminiError } from "../utils";
 import { validateAgentInput, validateGenerationSettings } from "../utils/validation";
 import { checkRateLimit, recordRequest } from "../utils/rate-limiter";
+import { getContextById } from "../utils/context-storage";
 
 const getRhymeDescription = (scheme: string): string => {
   switch (scheme) {
@@ -98,7 +99,23 @@ export const runLyricistAgent = async (
   const singerConfig = getVal(generationSettings?.singerConfig, generationSettings?.customSingerConfig, "Male Solo");
 
   let scenarioInstruction = "";
-  if (generationSettings?.ceremony && generationSettings.ceremony !== "None") {
+  
+  // Check for custom context first
+  if (generationSettings?.customContextId && generationSettings?.customSubContextId) {
+    const { context, subContext } = getContextById(
+      generationSettings.customContextId,
+      generationSettings.customSubContextId
+    );
+    
+    if (context && subContext) {
+      scenarioInstruction = `CUSTOM CONTEXT: ${context.name} - ${subContext.name}\n${subContext.promptContext}`;
+      if (subContext.suggestedKeywords && subContext.suggestedKeywords.length > 0) {
+        scenarioInstruction += `\nSUGGESTED KEYWORDS: ${subContext.suggestedKeywords.join(", ")}`;
+      }
+      scenarioInstruction += `\nINSTRUCTION: Use this custom context to inform the lyrical content and emotional direction.`;
+    }
+  } else if (generationSettings?.ceremony && generationSettings.ceremony !== "None") {
+    // Fall back to built-in scenarios
     const foundScenario = SCENARIO_KNOWLEDGE_BASE.flatMap(c => c.events).find(e => e.id === generationSettings.ceremony);
     if (foundScenario) {
       scenarioInstruction = `SCENARIO: ${foundScenario.label}\n${foundScenario.promptContext}\nINSTRUCTION: Reference specific emotions and metaphors from this scenario.`;

@@ -1,5 +1,8 @@
 import { GeneratedLyrics } from "./types";
 
+// Re-export context storage utilities
+export * from "./utils/context-storage";
+
 /**
  * Custom Error class for categorized AI failures with user-friendly messages
  */
