@@ -9,6 +9,7 @@ import { runChatAgent } from "../agents/chat";
 import { useOrchestrator } from "../hooks/useOrchestrator";
 import { getSafeLocalStorage, setSafeLocalStorage } from "../utils";
 import { DEFAULT_THEMES, SUGGESTION_CHIPS, ENHANCED_PROMPTS, AUTO_OPTION, MODEL_NAME } from "../config";
+import { AVAILABLE_MODELS } from "../config/models";
 
 // Component Imports
 import { Sidebar } from "./Sidebar";
@@ -36,6 +37,7 @@ const renderAgentIcon = (agent?: AgentType) => {
 
 export const Studio = () => {
   // --- State Management ---
+  // Sidebar should always remain accessible - this state persists across all operations
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -78,14 +80,30 @@ export const Studio = () => {
     return getSafeLocalStorage("swaz_saved_songs", []);
   });
 
-  // Appearance - Safe Init
+  // Appearance - Safe Init with Model Migration
   const [appearance, setAppearance] = useState<AppearanceSettings>(() => {
     // Ensure structure is valid even if local storage has partial/corrupt data
     const defaults = { fontSize: 16, themeId: "dark", customThemes: [], selectedModel: MODEL_NAME };
     const saved = getSafeLocalStorage("swaz_appearance", defaults);
+    
+    // Migration: Fix invalid model names (e.g., gemini-3.0-pro -> gemini-3-pro-preview)
+    const validModelIds = AVAILABLE_MODELS.map(m => m.id);
+    let selectedModel = saved.selectedModel || MODEL_NAME;
+    
+    // If the saved model is invalid, reset to default
+    if (!validModelIds.includes(selectedModel)) {
+      console.warn(`[MIGRATION] Invalid model "${selectedModel}" detected in localStorage. Resetting to default: ${MODEL_NAME}`);
+      selectedModel = MODEL_NAME;
+      
+      // Update localStorage immediately to prevent repeated migrations
+      const migratedSettings = { ...saved, selectedModel };
+      setSafeLocalStorage("swaz_appearance", migratedSettings);
+    }
+    
     return {
       ...defaults,
       ...saved,
+      selectedModel,
       customThemes: Array.isArray(saved.customThemes) ? saved.customThemes : []
     };
   });
@@ -209,6 +227,40 @@ export const Studio = () => {
       }
     }
     setIsLoading(false);
+  };
+
+  const handleNewSong = () => {
+    console.log("[STUDIO] 🎵 Starting new song composition");
+    
+    // Check for unsaved work
+    if (messages.length > 0) {
+      const hasLyrics = messages.some(msg => msg.role === 'assistant' && msg.content.trim().length > 0);
+      
+      if (hasLyrics) {
+        // Custom confirmation with three options
+        const userChoice = window.confirm(
+          "You have unsaved lyrics. Start new song?\n\n" +
+          "Click OK to discard and start new.\n" +
+          "Click Cancel to go back and save first."
+        );
+        
+        if (!userChoice) {
+          // User clicked Cancel - scroll to save button area
+          const lyricsRenderer = document.querySelector('[data-lyrics-renderer]');
+          if (lyricsRenderer) {
+            lyricsRenderer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+          return;
+        }
+      }
+    }
+    
+    // Clear state and start fresh
+    setMessages([]);
+    setInput("");
+    setSelectedImage(null);
+    setIsLoading(false);
+    // Note: Sidebar state (isSidebarOpen) is intentionally NOT reset - sidebar should always remain accessible
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -348,6 +400,15 @@ export const Studio = () => {
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={handleNewSong}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg transition-colors hover:bg-primary/10 text-primary border border-primary/20 hover:border-primary/40"
+              title="Create New Song"
+              aria-label="Create New Song - Start a fresh composition (will prompt if you have unsaved work)"
+            >
+              <Zap className="w-4 h-4" />
+              <span className="text-sm font-medium hidden sm:inline">New Song</span>
+            </button>
             <button
               onClick={() => setIsSettingsOpen(true)}
               className="p-2 rounded-full transition-colors hover:bg-secondary text-muted-foreground"

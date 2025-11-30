@@ -94,7 +94,7 @@ export const SettingsModal = ({ isOpen, onClose, settings, onUpdateSettings }: S
                 ))}
               </div>
               <p className="text-xs text-gray-400 mt-3">
-                Choose based on your needs: Flash (speed), 2.5 Pro (balanced, recommended), 3.0 Pro (quality).
+                Choose based on your needs: Flash (speed), 2.5 Pro (balanced, recommended), 3 Pro Preview (latest).
               </p>
             </div>
           </section>

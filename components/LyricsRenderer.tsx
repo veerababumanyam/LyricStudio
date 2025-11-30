@@ -386,7 +386,7 @@ export const LyricsRenderer = ({
 
       </div>
 
-      <div className="bg-background/50 min-h-[300px] relative">
+      <div className="bg-background/50 min-h-[300px] relative" data-lyrics-renderer>
         {viewMode === 'PRETTY' && (
           <div className="p-6 font-serif-telugu relative">
             {/* Background Decoration */}

@@ -20,5 +20,12 @@ dist-ssr
 *.suo
 *.ntvs*
 *.njsproj
-*.sln
 *.sw?
+
+# Backend
+server/.env
+server/database/*.db
+server/database/*.db-shm
+server/database/*.db-wal
+server/dist
+server/node_modules

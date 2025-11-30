@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear Model Cache - Lyric Studio</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #0F0F0F;
+            color: #FFFFFF;
+        }
+        .card {
+            background: #1A1A1A;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+        h1 { color: #EF4444; }
+        h2 { font-size: 18px; margin-top: 0; }
+        button {
+            background: #EF4444;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            margin-right: 10px;
+        }
+        button:hover { background: #DC2626; }
+        pre {
+            background: #000;
+            padding: 16px;
+            border-radius: 8px;
+            overflow-x: auto;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .success { color: #10B981; }
+        .warning { color: #F59E0B; }
+        .error { color: #EF4444; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Lyric Studio - Model Cache Cleaner</h1>
+    
+    <div class="card">
+        <h2>Current localStorage Settings</h2>
+        <pre id="current-settings">Loading...</pre>
+    </div>
+
+    <div class="card">
+        <h2>Actions</h2>
+        <button onclick="clearModelCache()">Clear Invalid Model Cache</button>
+        <button onclick="clearAllSettings()">Clear ALL Settings (Reset)</button>
+        <button onclick="location.reload()">Refresh</button>
+        <div id="result" style="margin-top: 16px;"></div>
+    </div>
+
+    <div class="card">
+        <h2>Valid Model Names</h2>
+        <ul>
+            <li><code>gemini-2.5-pro</code> - Primary (Recommended)</li>
+            <li><code>gemini-2.5-flash</code> - Fast</li>
+            <li><code>gemini-3-pro-preview</code> - Latest Preview</li>
+        </ul>
+    </div>
+
+    <script>
+        const VALID_MODELS = ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-3-pro-preview'];
+
+        function displayCurrentSettings() {
+            const settings = localStorage.getItem('swaz_appearance');
+            const element = document.getElementById('current-settings');
+            
+            if (!settings) {
+                element.textContent = 'No settings found in localStorage';
+                return;
+            }
+
+            try {
+                const parsed = JSON.parse(settings);
+                element.textContent = JSON.stringify(parsed, null, 2);
+
+                // Check if model is invalid
+                if (parsed.selectedModel && !VALID_MODELS.includes(parsed.selectedModel)) {
+                    element.textContent += '\n\n⚠️ INVALID MODEL DETECTED: ' + parsed.selectedModel;
+                }
+            } catch (e) {
+                element.textContent = 'Error parsing settings: ' + e.message;
+            }
+        }
+
+        function clearModelCache() {
+            const resultDiv = document.getElementById('result');
+            const settings = localStorage.getItem('swaz_appearance');
+            
+            if (!settings) {
+                resultDiv.innerHTML = '<p class="warning">No settings found.</p>';
+                return;
+            }
+
+            try {
+                const parsed = JSON.parse(settings);
+                const oldModel = parsed.selectedModel;
+
+                if (!VALID_MODELS.includes(parsed.selectedModel)) {
+                    // Set to default valid model
+                    parsed.selectedModel = 'gemini-2.5-pro';
+                    localStorage.setItem('swaz_appearance', JSON.stringify(parsed));
+                    resultDiv.innerHTML = `<p class="success">✅ Model updated from <code>${oldModel}</code> to <code>${parsed.selectedModel}</code></p><p>Please refresh your Lyric Studio app (http://localhost:3000)</p>`;
+                    displayCurrentSettings();
+                } else {
+                    resultDiv.innerHTML = '<p class="success">✅ Model is already valid: ' + parsed.selectedModel + '</p>';
+                }
+            } catch (e) {
+                resultDiv.innerHTML = '<p class="error">❌ Error: ' + e.message + '</p>';
+            }
+        }
+
+        function clearAllSettings() {
+            if (confirm('This will reset ALL your settings including themes, saved songs, etc. Continue?')) {
+                localStorage.removeItem('swaz_appearance');
+                localStorage.removeItem('swaz_saved_songs');
+                localStorage.removeItem('swaz_contexts');
+                document.getElementById('result').innerHTML = '<p class="success">✅ All settings cleared. Refresh the page.</p>';
+                setTimeout(() => location.reload(), 1500);
+            }
+        }
+
+        // Display on load
+        displayCurrentSettings();
+    </script>
+</body>
+</html>

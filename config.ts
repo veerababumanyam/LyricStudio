@@ -1,9 +1,10 @@
 
 import { AppTheme } from "./types";
 
-// Models should be configured via environment variables
-export const MODEL_NAME = import.meta.env.VITE_GOOGLE_GENAI_MODEL || "gemini-2.5-pro";
-export const MODEL_FAST = import.meta.env.VITE_GOOGLE_GENAI_MODEL_SECONDARY || "gemini-2.5-flash"; 
+// Models MUST be configured via environment variables in .env file
+// NO HARDCODED FALLBACKS
+export const MODEL_NAME = import.meta.env.VITE_GOOGLE_GENAI_MODEL;
+export const MODEL_FAST = import.meta.env.VITE_GOOGLE_GENAI_MODEL_SECONDARY;
 export const PROMPT_VERSION = "2.1.0"; // Version tracking for system instructions
 
 export const AUTO_OPTION = "Auto (AI Detect)";
