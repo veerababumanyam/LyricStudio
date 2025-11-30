@@ -47,7 +47,7 @@ export const APIKeyManager: React.FC<{ onClose?: () => void }> = ({ onClose }) =
             }
 
             // 2. Test API call
-            const testModel = import.meta.env.VITE_GOOGLE_GENAI_MODEL || 'gemini-2.0-flash-exp';
+            const testModel = import.meta.env.VITE_GOOGLE_GENAI_MODEL || 'gemini-2.5-pro';
             const ai = new GoogleGenAI({ apiKey: validation.sanitized! });
             await ai.models.generateContent({
                 model: testModel,

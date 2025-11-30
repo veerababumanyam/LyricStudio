@@ -83,7 +83,10 @@ export const SettingsModal = ({ isOpen, onClose, settings, onUpdateSettings }: S
                         : "border-white/10 hover:bg-white/5"
                     }`}
                   >
-                    <span className="font-medium">{model.name}</span>
+                    <div className="flex flex-col items-start">
+                      <span className="font-medium">{model.name}</span>
+                      <span className="text-xs text-gray-400 mt-0.5">{model.description}</span>
+                    </div>
                     {(settings.selectedModel || MODEL_NAME) === model.id && (
                       <Check className="w-4 h-4 text-red-500" />
                     )}
@@ -91,7 +94,7 @@ export const SettingsModal = ({ isOpen, onClose, settings, onUpdateSettings }: S
                 ))}
               </div>
               <p className="text-xs text-gray-400 mt-3">
-                Note: "Pro" models provide higher quality lyrics but may be slower. "Flash" models are faster.
+                Choose based on your needs: Flash (speed), 2.5 Pro (balanced, recommended), 3.0 Pro (quality).
               </p>
             </div>
           </section>

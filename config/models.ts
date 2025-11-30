@@ -8,18 +8,26 @@
 // These are display names only, actual model selection uses environment variables
 export const AVAILABLE_MODELS = [
     { 
-        id: import.meta.env.VITE_GOOGLE_GENAI_MODEL || "gemini-2.5-flash", 
-        name: "Gemini 2.5 Flash" 
+        id: import.meta.env.VITE_GOOGLE_GENAI_MODEL || "gemini-2.5-pro", 
+        name: "Gemini 2.5 Pro",
+        description: "Balanced quality and speed (Recommended)"
     },
     { 
-        id: import.meta.env.VITE_GOOGLE_GENAI_MODEL_SECONDARY || "gemini-2.5-pro", 
-        name: "Gemini 2.5 Pro" 
+        id: import.meta.env.VITE_GOOGLE_GENAI_MODEL_SECONDARY || "gemini-2.5-flash", 
+        name: "Gemini 2.5 Flash",
+        description: "Fastest, good for quick drafts"
+    },
+    { 
+        id: import.meta.env.VITE_GOOGLE_GENAI_MODEL_THIRD || "gemini-3.0-pro", 
+        name: "Gemini 3.0 Pro",
+        description: "Highest quality, slower"
     },
 ];
 
 // Primary models - Always from environment variables
-export const MODEL_NAME = import.meta.env.VITE_GOOGLE_GENAI_MODEL || "gemini-2.5-flash"; // Default fallback
-export const MODEL_FAST = import.meta.env.VITE_GOOGLE_GENAI_MODEL_SECONDARY || "gemini-2.5-pro"; // Default fallback
+export const MODEL_NAME = import.meta.env.VITE_GOOGLE_GENAI_MODEL || "gemini-2.5-pro"; // Default fallback
+export const MODEL_FAST = import.meta.env.VITE_GOOGLE_GENAI_MODEL_SECONDARY || "gemini-2.5-flash"; // Default fallback
+export const MODEL_ADVANCED = import.meta.env.VITE_GOOGLE_GENAI_MODEL_THIRD || "gemini-3.0-pro"; // Default fallback
 export const PROMPT_VERSION = "2.1.0";
 
 // Model-specific configurations

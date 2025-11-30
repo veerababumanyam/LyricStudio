@@ -372,7 +372,7 @@ export const Studio = () => {
                     </div>
 
                     <div className={`flex flex-col max-w-[85%] sm:max-w-[75%] ${msg.role === "user" ? "items-end" : "items-start"}`}>
-                      <div className={`p-4 rounded-2xl shadow-sm text-sm leading-relaxed whitespace-pre-wrap border select-text ${msg.role === "user"
+                      <div className={`p-4 rounded-2xl shadow-sm text-base leading-relaxed whitespace-pre-wrap border select-text ${msg.role === "user"
                           ? "bg-primary text-primary-foreground border-transparent rounded-tr-none"
                           : "glass-panel text-foreground rounded-tl-none"
                         }`}>
@@ -392,7 +392,7 @@ export const Studio = () => {
                       </div>
 
                       <div className="flex items-center gap-2 mt-1.5 ml-1">
-                        <span className="text-[10px] text-muted-foreground opacity-60">
+                        <span className="text-xs text-muted-foreground opacity-70">
                           {msg.senderAgent ? `${msg.senderAgent} • ` : ""} {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
@@ -445,7 +445,7 @@ export const Studio = () => {
                   <button
                     key={chip}
                     onClick={() => handleSendMessage(ENHANCED_PROMPTS[chip] || chip)}
-                    className="whitespace-nowrap px-3 py-1.5 bg-secondary/50 hover:bg-secondary text-xs font-medium text-muted-foreground hover:text-primary rounded-full border border-border transition-colors"
+                    className="whitespace-nowrap px-3 py-2 bg-secondary/50 hover:bg-secondary text-sm font-medium text-muted-foreground hover:text-primary rounded-full border border-border transition-colors"
                   >
                     {chip}
                   </button>
@@ -474,7 +474,7 @@ export const Studio = () => {
                 onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
                 placeholder="Describe the song (e.g., 'Sad breakup song in rain')..."
                 disabled={isLoading || agentStatus.active}
-                className="flex-1 bg-transparent border-none focus:ring-0 text-foreground placeholder-muted-foreground text-sm px-2"
+                className="flex-1 bg-transparent border-none focus:ring-0 text-foreground placeholder-muted-foreground text-base px-3 py-2"
               />
 
               <button
@@ -486,7 +486,7 @@ export const Studio = () => {
               </button>
             </div>
             <div className="text-center mt-2">
-              <p className="text-[10px] text-muted-foreground opacity-60">
+              <p className="text-xs text-muted-foreground opacity-70">
                 SWAZ AI can make mistakes. Check generated lyrics for accuracy.
               </p>
             </div>

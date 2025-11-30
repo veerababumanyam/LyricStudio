@@ -7,6 +7,7 @@ import { CustomContext, SubContext } from '../types/context';
 
 const STORAGE_KEY = 'swaz_custom_contexts';
 const SELECTION_KEY = 'swaz_context_selection';
+const ORDER_KEY = 'swaz_context_order';
 
 /**
  * Load all custom contexts from localStorage
@@ -164,4 +165,79 @@ export const getContextById = (contextId: string, subContextId?: string): { cont
   
   const subContext = context.subContexts.find(s => s.id === subContextId) || null;
   return { context, subContext };
+};
+
+/**
+ * Save context order to localStorage
+ */
+export const saveContextOrder = (contextIds: string[]): void => {
+  try {
+    localStorage.setItem(ORDER_KEY, JSON.stringify(contextIds));
+  } catch (error) {
+    console.error('Failed to save context order:', error);
+  }
+};
+
+/**
+ * Load context order from localStorage
+ */
+export const loadContextOrder = (): string[] => {
+  try {
+    const stored = localStorage.getItem(ORDER_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch (error) {
+    console.error('Failed to load context order:', error);
+    return [];
+  }
+};
+
+/**
+ * Reorder contexts based on saved order
+ */
+export const reorderContexts = (contexts: CustomContext[]): CustomContext[] => {
+  const order = loadContextOrder();
+  if (order.length === 0) return contexts;
+
+  const ordered: CustomContext[] = [];
+  const unordered: CustomContext[] = [];
+
+  // Add contexts in saved order
+  order.forEach(id => {
+    const context = contexts.find(c => c.id === id);
+    if (context) ordered.push(context);
+  });
+
+  // Add any new contexts that weren't in the saved order
+  contexts.forEach(context => {
+    if (!order.includes(context.id)) unordered.push(context);
+  });
+
+  return [...ordered, ...unordered];
+};
+
+/**
+ * Update context with reordered sub-contexts
+ */
+export const reorderSubContexts = (contextId: string, subContextIds: string[]): void => {
+  const contexts = loadCustomContexts();
+  const context = contexts.find(c => c.id === contextId);
+  
+  if (context) {
+    const reordered: SubContext[] = [];
+    
+    // Add sub-contexts in new order
+    subContextIds.forEach(id => {
+      const subContext = context.subContexts.find(s => s.id === id);
+      if (subContext) reordered.push(subContext);
+    });
+    
+    // Add any missing sub-contexts
+    context.subContexts.forEach(subContext => {
+      if (!subContextIds.includes(subContext.id)) reordered.push(subContext);
+    });
+    
+    context.subContexts = reordered;
+    context.updatedAt = Date.now();
+    saveCustomContexts(contexts);
+  }
 };
