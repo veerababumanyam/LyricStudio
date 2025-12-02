@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import { PreferencesController } from '../controllers/preferences.controller.js';
-import { requireAuth } from '../middleware/auth.middleware.js';
+import { authenticate } from '../middleware/auth.middleware.js';
 
 const router = Router();
 
 // All routes require authentication
-router.use(requireAuth);
+router.use(authenticate);
 
 // Preferences routes
 router.get('/', PreferencesController.getPreferences);

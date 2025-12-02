@@ -1,9 +1,9 @@
+import 'dotenv/config'; // Load environment variables first
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import passport from 'passport';
-import dotenv from 'dotenv';
 import { initDatabase } from './database/db.js';
 import { configureGoogleOAuth } from './services/auth/oauth.service.js';
 import { EncryptionService } from './services/encryption.service.js';
@@ -13,8 +13,14 @@ import songsRoutes from './routes/songs.routes.js';
 import profilesRoutes from './routes/profiles.routes.js';
 import contextsRoutes from './routes/contexts.routes.js';
 
-// Load environment variables
-dotenv.config();
+// Debug: Check if secrets are loaded
+const checkSecret = (name: string, value?: string) => {
+    console.log(`🔐 ${name}: ${value ? 'Loaded ✅' : 'Missing ❌'}`);
+};
+
+checkSecret('JWT_ACCESS_SECRET', process.env.JWT_ACCESS_SECRET);
+checkSecret('JWT_REFRESH_SECRET', process.env.JWT_REFRESH_SECRET);
+checkSecret('ENCRYPTION_MASTER_KEY', process.env.ENCRYPTION_MASTER_KEY);
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -64,7 +70,22 @@ configureGoogleOAuth();
 
 // Health check route
 app.get('/health', (_req: Request, res: Response) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    try {
+        const db = initDatabase();
+        const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number };
+        res.json({ 
+            status: 'ok', 
+            timestamp: new Date().toISOString(),
+            database: 'connected',
+            userCount: userCount.count
+        });
+    } catch (error) {
+        console.error('Health check failed:', error);
+        res.status(500).json({ 
+            status: 'error', 
+            error: String(error) 
+        });
+    }
 });
 
 // API routes

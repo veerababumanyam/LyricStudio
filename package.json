@@ -4,8 +4,10 @@
   "version": "0.0.2",
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"vite\" \"cd server && npm run dev\" --names \"frontend,backend\" --prefix-colors \"cyan,magenta\"",
+    "dev": "./scripts/dev-wrapper.sh",
+    "predev:frontend": "./scripts/clear-ports.sh",
     "dev:frontend": "vite",
+    "predev:server": "./scripts/clear-ports.sh",
     "dev:server": "cd server && npm run dev",
     "build": "vite build",
     "build:server": "cd server && npm run build",

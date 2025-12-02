@@ -4,6 +4,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Header } from "./components/Header";
 import { LandingPage } from "./components/LandingPage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { AuthProvider } from "./contexts/AuthContext";
+import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import "./global.css";
 
 // Lazy load the heavy Studio component
@@ -12,32 +14,36 @@ const Studio = React.lazy(() => import("./components/Studio").then(module => ({ 
 // --- Root App with Router ---
 const App = () => {
   return (
-    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <Routes>
-        <Route path="/" element={
-            <ErrorBoundary scope="Landing Page">
-                <div className="flex flex-col min-h-screen">
-                   <Header />
-                   <LandingPage />
-                </div>
-            </ErrorBoundary>
-        } />
-        <Route path="/studio" element={
-            <ErrorBoundary scope="Studio App">
-                <Suspense fallback={
-                  <div className="flex items-center justify-center h-screen w-full bg-background text-foreground">
-                     <div className="flex flex-col items-center gap-3">
-                        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-                        <p className="text-sm font-medium text-muted-foreground">Loading Studio...</p>
-                     </div>
+    <AuthProvider>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <Routes>
+          <Route path="/" element={
+              <ErrorBoundary scope="Landing Page">
+                  <div className="flex flex-col min-h-screen">
+                     <Header />
+                     <LandingPage />
                   </div>
-                }>
-                    <Studio />
-                </Suspense>
-            </ErrorBoundary>
-        } />
-      </Routes>
-    </BrowserRouter>
+              </ErrorBoundary>
+          } />
+          <Route path="/studio" element={
+              <ProtectedRoute>
+                <ErrorBoundary scope="Studio App">
+                    <Suspense fallback={
+                      <div className="flex items-center justify-center h-screen w-full bg-background text-foreground">
+                         <div className="flex flex-col items-center gap-3">
+                            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                            <p className="text-sm font-medium text-muted-foreground">Loading Studio...</p>
+                         </div>
+                      </div>
+                    }>
+                        <Studio />
+                    </Suspense>
+                </ErrorBoundary>
+              </ProtectedRoute>
+          } />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
   );
 };
 

@@ -19,17 +19,25 @@ interface AuthResponse {
 export class AuthController {
     static async register(req: Request, res: Response) {
         try {
+            console.log('📝 Registering user. Body:', JSON.stringify(req.body, null, 2));
             const { email, password, displayName, phoneNumber } = req.body;
+
+            if (!email || !password || !displayName) {
+                console.log('⚠️ Missing required fields');
+                return res.status(400).json({ error: 'Missing required fields' });
+            }
 
             // Check if user already exists
             const existingUser = UserRepository.findByEmail(email);
             if (existingUser) {
+                console.log('⚠️ User already exists:', email);
                 return res.status(409).json({ error: 'Email already registered' });
             }
 
             // Validate password strength
             const passwordValidation = PasswordService.validatePasswordStrength(password);
             if (!passwordValidation.valid) {
+                console.log('⚠️ Weak password:', passwordValidation.errors);
                 return res.status(400).json({
                     error: 'Password does not meet requirements',
                     details: passwordValidation.errors
@@ -37,9 +45,11 @@ export class AuthController {
             }
 
             // Hash password
+            console.log('🔐 Hashing password...');
             const passwordHash = await PasswordService.hashPassword(password);
 
             // Create user
+            console.log('👤 Creating user in DB...');
             const user = UserRepository.createUser({
                 email,
                 phone_number: phoneNumber,
@@ -48,20 +58,35 @@ export class AuthController {
                 auth_provider: 'local',
                 email_verified: 0
             });
+            console.log('✅ User created:', user);
+
+            if (!user) {
+                throw new Error('User creation returned null');
+            }
 
             // Generate tokens
+            console.log('🔑 Generating tokens...');
             const { accessToken, refreshToken, refreshTokenExpiry } =
                 await AuthController.generateTokens(user);
 
             // Set cookies
             AuthController.setAuthCookies(res, accessToken, refreshToken, refreshTokenExpiry);
 
-            res.status(201).json({
+            const response = {
                 user: UserRepository.toResponse(user)
-            } as AuthResponse);
+            };
+            console.log('📤 Sending response:', response);
+
+            res.status(201).json(response as AuthResponse);
         } catch (error) {
-            console.error('Registration error:', error);
-            res.status(500).json({ error: 'Registration failed' });
+            console.error('❌ Registration error:', error);
+            if (error instanceof Error) {
+                console.error('Stack:', error.stack);
+            }
+            res.status(500).json({ 
+                error: 'Registration failed',
+                details: error instanceof Error ? error.message : String(error)
+            });
         }
     }
 
@@ -205,16 +230,28 @@ export class AuthController {
 
     static async getCurrentUser(req: Request, res: Response) {
         try {
+            console.log('👤 Getting current user...');
             if (!req.user) {
+                console.log('⚠️ No user in request');
                 return res.status(401).json({ error: 'Not authenticated' });
             }
 
-            res.json({
+            console.log('✅ User found in request:', req.user.id);
+            const response = {
                 user: UserRepository.toResponse(req.user)
-            } as AuthResponse);
+            };
+            console.log('📤 Sending user response:', response);
+
+            res.json(response as AuthResponse);
         } catch (error) {
-            console.error('Get current user error:', error);
-            res.status(500).json({ error: 'Failed to get user' });
+            console.error('❌ Get current user error:', error);
+            if (error instanceof Error) {
+                console.error('Stack:', error.stack);
+            }
+            res.status(500).json({ 
+                error: 'Failed to get user',
+                details: error instanceof Error ? error.message : String(error)
+            });
         }
     }
 
