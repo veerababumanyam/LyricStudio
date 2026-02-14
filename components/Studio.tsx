@@ -10,7 +10,6 @@ import { useStudio } from "../contexts/StudioContext";
 import { Header } from "./Header";
 import { SwaraSutraSidebar } from "./SwaraSutraSidebar";
 import { HelpModal } from "./HelpModal";
-import { ApiKeyWelcomeModal } from "./ApiKeyWelcomeModal";
 import { MoodBackground } from "./MoodBackground";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { TutorialOverlay } from "./TutorialOverlay";
@@ -309,7 +308,6 @@ const Studio = () => {
         )}
       </div>
       <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
-      <ApiKeyWelcomeModal isOpen={!hasApiKey} onSuccess={() => setHasApiKey(true)} />
       <RhythmTapper isOpen={isTapperOpen} onClose={() => setIsTapperOpen(false)} onApply={setRhythmContext} />
     </div>
   );

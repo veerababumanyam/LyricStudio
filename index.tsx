@@ -5,7 +5,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import Studio from "./components/Studio";
 import { AboutPage } from "./components/AboutPage";
-
+import { LandingPage } from "./components/LandingPage";
 import { StudioProvider } from "./contexts/StudioContext";
 import "./global.css";
 
@@ -19,10 +19,10 @@ const App = () => {
     <BrowserRouter>
       <StudioProvider>
         <Routes>
-          {/* Studio Dashboard (Default Route) */}
+          {/* Landing Page (SEO Root) */}
           <Route path="/" element={
-            <ErrorBoundary scope="Root: Studio">
-              <Studio />
+            <ErrorBoundary scope="Root: Landing">
+              <LandingPage />
             </ErrorBoundary>
           } />
 
@@ -30,6 +30,13 @@ const App = () => {
           <Route path="/about" element={
             <ErrorBoundary scope="Root: About">
               <AboutPage />
+            </ErrorBoundary>
+          } />
+
+          {/* Studio Environment */}
+          <Route path="/studio" element={
+            <ErrorBoundary scope="Root: Studio">
+              <Studio />
             </ErrorBoundary>
           } />
 
